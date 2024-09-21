@@ -44,7 +44,7 @@ class MPC_Agent():
     ) -> Action:
         """ The high-level method to be called to find the action """
         # parse the observation from env
-        self.parseObservation(observation)
+        self.parse_observation(observation)
         
         # solve the minimization problem
         result = minimize(
@@ -58,6 +58,8 @@ class MPC_Agent():
         )
         
         # construct the action 
+        print('acc=', result.x[0])
+        print('steering angle', result.x[1])
         action = Action(
             acceleration=result.x[0],
             steer=result.x[1])
@@ -75,7 +77,7 @@ class MPC_Agent():
             weights = {
                 "cost_state": 1, 
                 "cost_control": 1,
-                "cost_obstacle": 1,
+                "cost_distance": 1,
                 "cost_collision": 1,
                 "cost_inputDiff": 1,
                 "cost_finalStateDiff": 1000,
@@ -83,14 +85,14 @@ class MPC_Agent():
         elif isinstance(weights, dict):
             # weights from RL
             assert len(weights) == 6 and set(weights.keys()) == set([
-                "cost_state", "cost_control", "cost_obstacle", "cost_collision", "cost_inputDiff", "cost_finalStateDiff"
+                "cost_state", "cost_control", "cost_distance", "cost_collision", "cost_inputDiff", "cost_finalStateDiff"
             ])
         
         # all cost components
         cost_total = 0
         cost_state = 0
         cost_control = 0
-        cost_obstacle = 0
+        cost_distance = 0
         cost_collision = 0
         cost_inputDiff = 0 
         cost_finalStateDiff = 0
@@ -137,8 +139,15 @@ class MPC_Agent():
             # compute control cost
             cost_control += 0.01 * action.acceleration**2 + 0.1 * action.steer**2
 
-            # compute obstacle cost TODO
-            cost_obstacle += 0
+            # compute distance cost 
+            for vehicle_state in future_step_vehicle_states:
+                if not vehicle_state.is_ego:
+                    agent_position = vehicle_state.position
+                    distance = np.linalg.norm(agent_position - next_ego_state.position)
+                    if distance < 1.0:
+                        cost_distance += 1000 / (distance + 1e-6)**2
+                    else:
+                        cost_distance += 100 / (distance + 1e-6)**2
             
             # compute collision cost TODO
             cost_collision += 0
@@ -171,12 +180,12 @@ class MPC_Agent():
             weights['cost_state'] * cost_state + \
             weights['cost_control'] * cost_control + \
             weights['cost_collision'] * cost_collision + \
-            weights['cost_obstacle'] * cost_obstacle + \
+            weights['cost_distance'] * cost_distance + \
             weights['cost_inputDiff'] * cost_inputDiff + \
             weights['cost_finalStateDiff'] * cost_finalStateDiff
         return cost_total
  
-    def parseObservation(self, observation: KinematicObservation):
+    def parse_observation(self, observation: KinematicObservation):
         """ Take raw observation and save as vehicles' states """
         
         # observation type check
@@ -309,11 +318,11 @@ class MPC_Agent():
         plt.gca().invert_yaxis() # flip y-axis, consistent with pygame window
         
         plt.pause(0.1) # animate
-        
-
+    
+    
 if __name__ == "__main__":
     # config
-    np.set_printoptions(suppress=True, precision=2)
+    np.set_printoptions(suppress=True, precision=5)
     
     # DOC: https://highway-env.farama.org/environments/intersection/#default-configuration
     config = {
@@ -337,8 +346,8 @@ if __name__ == "__main__":
     },
     "action": {
         "type": "ContinuousAction",
-        "steering_range": [-np.pi / 3, np.pi / 3],
-        "acceleration_range": [-10.0, 3.0],
+        # "steering_range": [-np.pi / 3, np.pi / 3],
+        # "acceleration_range": [-5.0, 5.0],
         "longitudinal": True,
         "lateral": True,
         "dynamical": True,
@@ -359,20 +368,20 @@ if __name__ == "__main__":
     # print(env.unwrapped.config)
     
     observation, _ = env.reset()
-    print(observation)
     env.render()
      
-    action: Action = mpc_agent.solve(observation)
+    # action: Action = mpc_agent.solve(observation)
     # print(mpc_agent.reference_trajectory)
     # mpc_agent.plot()
     # plt.show()
     
     for i in range(100):
         # getting action from agent
-        action: Action = mpc_agent.solve(observation)
-        mpc_agent.plot()
+        # action: Action = mpc_agent.solve(observation)
+        # mpc_agent.plot()
         
-        observation, reward, done, truncated, info = env.step(action.numpy())
+        observation, reward, done, truncated, info = env.step([0, 0])
+            # action.numpy())
         
         # rendering animation
         env.render()
