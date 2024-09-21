@@ -47,6 +47,8 @@ class MPC_Agent():
         self.parse_observation(observation)
         
         # solve the minimization problem
+        # DOC: https://docs.scipy.org/doc/scipy/reference/generated/
+        #       scipy.optimize.OptimizeResult.html#scipy.optimize.OptimizeResult
         result = minimize(
             fun=self.cost_function,
             x0=np.zeros(2 * self.horizon),
@@ -58,11 +60,12 @@ class MPC_Agent():
         )
         
         # construct the action 
-        print('acc=', result.x[0])
-        print('steering angle', result.x[1])
         action = Action(
-            acceleration=result.x[0],
-            steer=result.x[1])
+            acceleration=result.x[0] / self.env.config['action']['acceleration_range'][1],
+            steer=result.x[1] / self.env.config['action']['steering_range'][1])
+        
+        print('acc=', action.acceleration, 'steering angle', action.steer, result.success)
+
         return action
 
     def cost_function(self, actions, weights = None, speed_override_from_RL = None) -> float:
@@ -80,7 +83,7 @@ class MPC_Agent():
                 "cost_distance": 1,
                 "cost_collision": 1,
                 "cost_inputDiff": 1,
-                "cost_finalStateDiff": 1000,
+                "cost_finalStateDiff": 1,
             }
         elif isinstance(weights, dict):
             # weights from RL
@@ -346,8 +349,8 @@ if __name__ == "__main__":
     },
     "action": {
         "type": "ContinuousAction",
-        # "steering_range": [-np.pi / 3, np.pi / 3],
-        # "acceleration_range": [-5.0, 5.0],
+        "steering_range": [-np.pi / 4, np.pi / 4],
+        "acceleration_range": [-5.0, 5.0],
         "longitudinal": True,
         "lateral": True,
         "dynamical": True,
@@ -368,7 +371,7 @@ if __name__ == "__main__":
     # print(env.unwrapped.config)
     
     observation, _ = env.reset()
-    env.render()
+    # env.render()
      
     # action: Action = mpc_agent.solve(observation)
     # print(mpc_agent.reference_trajectory)
@@ -377,11 +380,10 @@ if __name__ == "__main__":
     
     for i in range(100):
         # getting action from agent
-        # action: Action = mpc_agent.solve(observation)
+        action: Action = mpc_agent.solve(observation)
         # mpc_agent.plot()
         
-        observation, reward, done, truncated, info = env.step([0, 0])
-            # action.numpy())
+        observation, reward, done, truncated, info = env.step(action.numpy())
         
         # rendering animation
         env.render()
