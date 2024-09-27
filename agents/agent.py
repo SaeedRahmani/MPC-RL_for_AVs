@@ -90,7 +90,7 @@ class Agent:
             index=0,
             position=obs[0, 1:3],
             vectorized_speed=obs[0, 3:5],
-            heading=obs[0, 5]
+            heading=self.normalize_angle(obs[0, 5])
         )
         
         # Agent vehicles
@@ -122,12 +122,12 @@ class Agent:
             trajectory.append((x, y, v, heading))
         
         # Compute the turn
-        angle_increment = turn_angle / 20  # Divide the turn into 20 steps
-        for _ in range(20):
+        angle_increment = turn_angle / 40  # Divide the turn into 20 steps
+        for _ in range(40): 
             if collision_points and (x, y) in collision_points:
                 v = 0  # Set speed based on DRL agent's decision
-            heading += angle_increment  # Decrease heading to turn left
-            x -= v * self.dt * np.cos(heading)
+            heading -= angle_increment  # Decrease heading to turn left
+            x += v * self.dt * np.cos(heading)
             y += v * self.dt * np.sin(heading)
         
             trajectory.append((x, y, v, heading))
@@ -136,10 +136,26 @@ class Agent:
         for _ in range(25):  # Continue for a bit after the turn
             if collision_points and (x, y) in collision_points:
                 v = 0  # Set speed based on DRL agent's decision
-            
-            x -= v * self.dt * np.cos(heading)
+            # heading = 
+            x += v * self.dt * np.cos(heading)
             y += 0
         
             trajectory.append((x, y, v, heading))
         
         return np.array(trajectory)
+    
+    def normalize_angle(self, angle):
+        """
+        Normalize an angle to the range [-pi, pi].
+        
+        Parameters:
+            angle (float): The angle to be normalized in radians.
+            
+        Returns:
+            float: The normalized angle in the range [-pi, pi].
+        """
+        while angle > np.pi:
+            angle -= 2 * np.pi
+        while angle < -np.pi:
+            angle += 2 * np.pi
+        return angle

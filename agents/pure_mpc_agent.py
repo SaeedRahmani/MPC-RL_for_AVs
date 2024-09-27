@@ -55,10 +55,9 @@ class PureMPC_Agent(Agent):
         
         for k in range(N):
             ref_traj_index = min(closest_index + k, self.reference_states.shape[0] - 1)
-            # print(ref_traj_index)
+
             dx = x[0, k] - ref[ref_traj_index,0]
             dy = x[1, k] - ref[ref_traj_index,1]
-            print(x[0, k], dx)
 
             ref_v = ref[ref_traj_index,2]
             ref_heading = ref[ref_traj_index,3]
@@ -67,10 +66,11 @@ class PureMPC_Agent(Agent):
 
             # State cost
             state_cost += (
-                20 * perp_deviation**2 + 1 * para_deviation**2 +
-                # 1 * (x[3, k] - ref_v)**2 + 
-                1 * (x[2, k] - ref_heading)**2)
-            print(state_cost)
+                2 * perp_deviation**2 + 
+                2 * para_deviation**2 +
+                1 * (x[3, k] - ref_v)**2 + 
+                1 * (x[2, k] - ref_heading)**2
+            )
 
             # Control cost
             control_cost += 0.01 * u[0, k]**2 + 0.1 * u[1, k]**2
@@ -80,10 +80,14 @@ class PureMPC_Agent(Agent):
                 input_diff_cost += 0.5 * ((u[0, k] - u[0, k-1])**2 + (u[1, k] - u[1, k-1])**2)
 
         # final state cost
-        # desired_final_state = self.reference_states[-1, :]
-        # final_state_cost += 100 * (
-        #     (x[0, -1] - desired_final_state[0])**2 + (x[1, -1] - desired_final_state[1])**2 + 
-        #     (x[3, -1] - desired_final_state[2])**2 + (x[2, -1] - desired_final_state[3])**2)
+        ref_traj_index = min(closest_index + N, self.reference_states.shape[0] - 1)
+        desired_final_state = self.reference_states[ref_traj_index, :]        
+        final_state_cost += 100 * (
+            (x[0, -1] - desired_final_state[0])**2 + 
+            (x[1, -1] + desired_final_state[1])**2 + 
+            (x[3, -1] - desired_final_state[2])**2 + # ref speed
+            (x[2, -1] - desired_final_state[3])**2 # heading angle
+        )
 
         cost = 5 * state_cost + 20 * control_cost + final_state_cost + input_diff_cost
 
