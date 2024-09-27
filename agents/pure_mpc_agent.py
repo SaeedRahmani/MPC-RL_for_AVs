@@ -1,6 +1,7 @@
 """ Pure MPC agent """
 
 import numpy as np
+import matplotlib.pyplot as plt
 from gymnasium import Env
 import casadi as ca
 
@@ -50,33 +51,41 @@ class PureMPC_Agent(Agent):
         state_cost = 0
         control_cost = 0
         final_state_cost = 0
+        input_diff_cost = 0
         
         for k in range(N):
             ref_traj_index = min(closest_index + k, self.reference_states.shape[0] - 1)
             # print(ref_traj_index)
             dx = x[0, k] - ref[ref_traj_index,0]
             dy = x[1, k] - ref[ref_traj_index,1]
+            print(x[0, k], dx)
+
             ref_v = ref[ref_traj_index,2]
             ref_heading = ref[ref_traj_index,3]
-            perp_deviation = dx * np.sin(ref_heading) - dy * np.cos(ref_heading)
-            para_deviation = dx * np.cos(ref_heading) + dy * np.sin(ref_heading)
+            perp_deviation = dx * ca.sin(ref_heading) - dy * ca.cos(ref_heading)
+            para_deviation = dx * ca.cos(ref_heading) + dy * ca.sin(ref_heading)
 
             # State cost
             state_cost += (
                 20 * perp_deviation**2 + 1 * para_deviation**2 +
                 # 1 * (x[3, k] - ref_v)**2 + 
-                0.1 * (x[2, k] - ref_heading)**2)
+                1 * (x[2, k] - ref_heading)**2)
+            print(state_cost)
 
             # Control cost
             control_cost += 0.01 * u[0, k]**2 + 0.1 * u[1, k]**2
+            
+            # Input difference cost
+            if k > 0:
+                input_diff_cost += 0.5 * ((u[0, k] - u[0, k-1])**2 + (u[1, k] - u[1, k-1])**2)
 
-            # final state cost
-            desired_final_state = self.reference_states[-1, :]
-            final_state_cost += 100 * (
-                (x[0, k] - desired_final_state[0])**2 + (x[1, k] - desired_final_state[1])**2 + 
-                (x[3, k] - desired_final_state[2])**2 + (x[2, k] - desired_final_state[3])**2)
+        # final state cost
+        # desired_final_state = self.reference_states[-1, :]
+        # final_state_cost += 100 * (
+        #     (x[0, -1] - desired_final_state[0])**2 + (x[1, -1] - desired_final_state[1])**2 + 
+        #     (x[3, -1] - desired_final_state[2])**2 + (x[2, -1] - desired_final_state[3])**2)
 
-        cost += state_cost + control_cost + final_state_cost
+        cost = 5 * state_cost + 20 * control_cost + final_state_cost + input_diff_cost
 
         # Define the vehicle dynamics using the Kinematic Bicycle Model
         def vehicle_model(x, u):
@@ -112,8 +121,10 @@ class PureMPC_Agent(Agent):
         ubx = []
         # Bounds on the state variables (no specific bounds for now)
         for _ in range(N + 1):
-            lbx += [-ca.inf, -ca.inf, -ca.pi, 0]  # Lower bounds [x, y, theta, v]
-            ubx += [ca.inf, ca.inf, ca.pi, 30]    # Upper bounds [x, y, theta, v]
+            lbx += [-500, -500, -ca.pi, 0]  # Lower bounds [x, y, theta, v]
+            ubx += [500, 500, ca.pi, 30]    # Upper bounds [x, y, theta, v]
+            # lbx += [-ca.inf, -ca.inf, -ca.pi, 0]  # Lower bounds [x, y, theta, v]
+            # ubx += [ca.inf, ca.inf, ca.pi, 30]    # Upper bounds [x, y, theta, v]
         # Bounds on control inputs (acceleration and steering angle)
         for _ in range(N):
             lbx += [-5, -ca.pi / 3]  # Lower bounds [acceleration, steer_angle]
@@ -146,3 +157,15 @@ class PureMPC_Agent(Agent):
         
         mpc_action = MPC_Action(acceleration=u_opt[0, 0], steer=u_opt[0, 1])
         return mpc_action
+    
+    def plot(self, width: float = 100, height: float = 100):
+        plt.clf() 
+        plt.scatter(self.reference_states[:,0], self.reference_states[:,1], c='grey', s=1)
+        plt.scatter(self.ego_vehicle.position[0], self.ego_vehicle.position[1])
+        plt.axis('on')  
+        plt.xlim([-width, width])
+        plt.ylim([-height, height])
+
+        plt.gca().invert_yaxis() # flip y-axis, consistent with pygame window
+        
+        plt.pause(0.1) # animate

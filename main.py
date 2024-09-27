@@ -46,6 +46,7 @@ config = {
 
 # env
 env = gym.make("intersection-v1", render_mode="rgb_array", config=config)
+print(env.action_space)
 
 # agent
 mpc_agent = PureMPC_Agent(env, horizon=10)
@@ -59,7 +60,7 @@ for i in range(100):
     # mpc_agent.plot()
     print(np.array([action.acceleration, action.steer]))
     observation, reward, done, truncated, info = env.step([action.acceleration/5, action.steer/(np.pi/3)])
-    
+    mpc_agent.plot()
     # rendering animation
     env.render()
     
