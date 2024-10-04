@@ -34,9 +34,9 @@ config = {
         "dynamical": True,
     },
     "scaling": 3, # scale the rendering animation to show all the surrounding vehicles.
-    "duration": 40,  # [s]
+    "duration": 10,  # [s]
     # "destination": "o1",
-    "initial_vehicle_count": -1,
+    "initial_vehicle_count": 2,
     "spawn_probability": 0.0002,
     "screen_width": 600,
     "screen_height": 600,
@@ -51,7 +51,7 @@ env = gym.make("intersection-v1", render_mode="rgb_array", config=config)
 mpc_agent = PureMPC_Agent(env, horizon=10)
 
 observation, _ = env.reset()
-print(mpc_agent.reference_states)
+print(observation)
 
 for i in range(100):
     # getting action from agent
@@ -59,13 +59,14 @@ for i in range(100):
     # mpc_agent.plot()
     # print(np.array([action.acceleration, action.steer]))
     observation, reward, done, truncated, info = env.step([action.acceleration/5, action.steer/(np.pi/3)])
-    print(observation[0,:])
+    # print(observation[0,1:3])
     mpc_agent.plot()
     # rendering animation
     env.render()
     
     # checking end conditions
     if done or truncated:
+        break
         state = env.reset()
 
 # destroy all handles

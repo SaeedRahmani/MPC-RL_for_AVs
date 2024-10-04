@@ -56,6 +56,48 @@ class PureMPC_Agent(Agent):
         for k in range(N):
             ref_traj_index = min(closest_index + k, self.reference_states.shape[0] - 1)
 
+            ref_v = ref[ref_traj_index,2]
+            ref_heading = ref[ref_traj_index,3]
+            
+            """ CVXPY version """
+            
+            d_perp = x[0, k] - ref[ref_traj_index,0]
+            d_para = x[1, k] - ref[ref_traj_index,1]
+            
+            c_perp, s_perp = ca.cos(ref_heading + ca.pi/2), ca.sin(ref_heading + ca.pi/2)
+            matrix_perp = ca.SX([
+                [c_perp**2, c_perp*s_perp],
+                [c_perp*s_perp, s_perp**2]])
+            
+            c_para, s_para = ca.cos(ref_heading), ca.sin(ref_heading)
+            matrix_para = ca.SX([
+                [c_para**2, c_para*s_para],
+                [c_para*s_para, s_para**2]])
+            
+            total_d = ca.vertcat(d_perp, d_para)
+
+            print(f"ref speed:{ref_v}, ref x: {ref[ref_traj_index,0]}, ref y: {ref[ref_traj_index,1]}")
+            perp_deviation = ca.norm_2(ca.mtimes(matrix_perp, total_d))
+            para_deviation = ca.norm_2(ca.mtimes(matrix_para, total_d))
+
+            """ ChatGPT version"""
+
+            # delta_x =  x[0, k] - ref[ref_traj_index, 0]
+            # delta_y =  x[1, k] - ref[ref_traj_index, 1]
+
+            # # Adjust for inverted y-axis if necessary
+            # # delta_y *= -1  # If your coordinate system has y increasing downwards
+
+            # ref_heading = ref[ref_traj_index, 3]
+            # # print(ref_heading)
+
+            # # Perpendicular Deviation (distance to the path)
+            # perp_deviation = -ca.sin(ref_heading) * delta_x + ca.cos(ref_heading) * delta_y
+
+            # # Parallel Deviation (progress along the path)
+            # para_deviation = ca.cos(ref_heading) * delta_x + ca.sin(ref_heading) * delta_y
+
+            """ Gozde version"""
             dx = x[0, k] - ref[ref_traj_index,0]
             dy = x[1, k] - ref[ref_traj_index,1]
 
@@ -66,18 +108,18 @@ class PureMPC_Agent(Agent):
 
             # State cost
             state_cost += (
-                2 * perp_deviation**2 + 
-                2 * para_deviation**2 +
+                1 * perp_deviation**2 + 
+                0.5 * para_deviation**2 +
                 1 * (x[3, k] - ref_v)**2 + 
-                1 * (x[2, k] - ref_heading)**2
+                0.1 * (x[2, k] - ref_heading)**2
             )
 
             # Control cost
-            control_cost += 0.01 * u[0, k]**2 + 0.1 * u[1, k]**2
+            control_cost += 0.01 * u[0, k]**2 + 0.01 * u[1, k]**2
             
             # Input difference cost
             if k > 0:
-                input_diff_cost += 0.5 * ((u[0, k] - u[0, k-1])**2 + (u[1, k] - u[1, k-1])**2)
+                input_diff_cost += 0.01 * ((u[0, k] - u[0, k-1])**2 + (u[1, k] - u[1, k-1])**2)
 
         # final state cost
         ref_traj_index = min(closest_index + N, self.reference_states.shape[0] - 1)
@@ -89,7 +131,7 @@ class PureMPC_Agent(Agent):
             (x[2, -1] - desired_final_state[3])**2 # heading angle
         )
 
-        cost = 5 * state_cost + 20 * control_cost + final_state_cost + input_diff_cost
+        cost = 10 * state_cost + 1 * control_cost + final_state_cost + input_diff_cost
 
         # Define the vehicle dynamics using the Kinematic Bicycle Model
         def vehicle_model(x, u):

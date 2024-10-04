@@ -122,8 +122,8 @@ class Agent:
             trajectory.append((x, y, v, heading))
         
         # Compute the turn
-        angle_increment = turn_angle / 40  # Divide the turn into 20 steps
-        for _ in range(40): 
+        angle_increment = turn_angle / 20  # Divide the turn into 20 steps
+        for _ in range(20): 
             if collision_points and (x, y) in collision_points:
                 v = 0  # Set speed based on DRL agent's decision
             heading -= angle_increment  # Decrease heading to turn left
