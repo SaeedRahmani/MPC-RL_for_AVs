@@ -27,7 +27,8 @@ class Agent:
         self.simulate_freq: int = self.env.config['simulation_frequency']
         self.policy_freq: int = self.env.config['policy_frequency']
         self.total_vehicles_count = self.env.config["observation"]["vehicles_count"]
-        
+        self.TTC_threshold: float = 0.5
+
         # observation
         self.observed_vehicles_count = 0 # not including ego vehicle
         self.ego_vehicle = None
@@ -159,3 +160,7 @@ class Agent:
         while angle < -np.pi:
             angle += 2 * np.pi
         return angle
+    
+    def other_vehicle_model(self, other_vehicle, dt):
+        new_position = other_vehicle.position + other_vehicle.speed * dt * np.array([np.cos(other_vehicle.heading), np.sin(other_vehicle.heading)])
+        return new_position

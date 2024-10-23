@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 from gymnasium import Env
 import casadi as ca
 
-from .agent import Agent
+from .base_agent import Agent
 from .utils import MPC_Action, Vehicle
 
 class PureMPC_Agent(Agent):
@@ -134,7 +134,48 @@ class PureMPC_Agent(Agent):
                 )
 
             # Collision cost
-            collision_cost += 0
+            collision_penalty_applied = 0  # Flag to track if a collision penalty has been applied
+
+            for other_vehicle in self.agent_vehicles:
+                # Get positions of the ego vehicle and the other vehicle
+                ego_position = x[:2, k]  # [x_ego, y_ego]
+                other_position = other_vehicle.position  # Assuming this is [x_other, y_other]
+                
+                # Calculate distance in x and y
+                delta_x = ego_position[0] - other_position[0]
+                delta_y = ego_position[1] - other_position[1]
+                
+                dist_to_other_vehicle_x = ca.fabs(delta_x)  # Distance in x direction
+                dist_to_other_vehicle_y = ca.fabs(delta_y)  # Distance in y direction
+                
+                # Get speeds of the ego vehicle and the other vehicle
+                ego_speed_x = x[3, k] * ca.cos(x[2, k])  # Assuming x[2, k] is the heading
+                ego_speed_y = x[3, k] * ca.sin(x[2, k])
+                
+                other_speed_x = other_vehicle.speed * ca.cos(other_vehicle.heading)  # Assuming you have heading
+                other_speed_y = other_vehicle.speed * ca.sin(other_vehicle.heading)
+                
+                # Calculate relative velocities in x and y
+                relative_velocity_x = ego_speed_x - other_speed_x
+                relative_velocity_y = ego_speed_y - other_speed_y
+                
+                # Calculate TTC for x and y directions using CasADi
+                ttc_x = ca.if_else(relative_velocity_x < 0, dist_to_other_vehicle_x / (relative_velocity_x + 1e-6), ca.inf)
+                ttc_y = ca.if_else(relative_velocity_y < 0, dist_to_other_vehicle_y / (relative_velocity_y + 1e-6), ca.inf)
+                
+
+                # Calculate collision cost based on TTC thresholds
+                collision_condition = ca.logic_or(ttc_x < self.TTC_threshold, ttc_y < self.TTC_threshold)  # Use ca.or_ for logical OR
+
+                # Update collision penalty flag if any collision condition is met
+                collision_penalty_applied = ca.if_else(collision_condition, 1, collision_penalty_applied)
+
+            # Apply penalty if not already applied
+            collision_cost += ca.if_else(collision_penalty_applied == 0, 3000 * x[3, k]**2, 0)
+            
+            # Update other vehicles' location (constant speed)
+            for other_vehicle in self.agent_vehicles:
+                other_vehicle.position = self.other_vehicle_model(other_vehicle, self.dt)
         
 
         # final state cost

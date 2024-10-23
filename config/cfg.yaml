@@ -1,0 +1,12 @@
+env:
+  vehicles_count: 30
+  initial_vehicle_count: 15
+  absolute: True
+  normalize: False
+  order: sorted
+  spawn_probability: 0.3
+pure_mpc:
+
+mpc_rl:
+
+rl:
