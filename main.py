@@ -48,7 +48,7 @@ config = {
 env = gym.make("intersection-v1", render_mode="rgb_array", config=config)
 
 # agent
-mpc_agent = PureMPC_Agent(env, horizon=10)
+mpc_agent = PureMPC_Agent(env, horizon=12)
 
 observation, _ = env.reset()
 print(observation)
