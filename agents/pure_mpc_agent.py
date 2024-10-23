@@ -108,8 +108,8 @@ class PureMPC_Agent(Agent):
 
             # State cost
             state_cost += (
-                1 * perp_deviation**2 + 
-                0.5 * para_deviation**2 +
+                4 * perp_deviation**2 + 
+                2 * para_deviation**2 +
                 1 * (x[3, k] - ref_v)**2 + 
                 0.1 * (x[2, k] - ref_heading)**2
             )
