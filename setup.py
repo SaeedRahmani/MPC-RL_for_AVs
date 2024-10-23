@@ -6,11 +6,11 @@ setup(
     description='A brief description of your package',
     author='Zhenlin (Gavin) Xu',
     author_email='gavinxu66@gmail.com',
-    # url='https://github.com/yourusername/your-repo',
+    url='https://github.com/Zhenlin-Xu/mpcrl',
     packages=find_packages(),
     install_requires=[
         'gymnasium>=1.0.0a2',
-        'numpy>=2.1.1',
+        'numpy>=2.1.2',
         'highway-env==1.10.1'
     ],
     classifiers=[
