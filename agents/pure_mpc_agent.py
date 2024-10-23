@@ -52,6 +52,8 @@ class PureMPC_Agent(Agent):
         control_cost = 0
         final_state_cost = 0
         input_diff_cost = 0
+        distance_cost = 0
+        collision_cost = 0
         
         for k in range(N):
             ref_traj_index = min(closest_index + k, self.reference_states.shape[0] - 1)
@@ -121,6 +123,20 @@ class PureMPC_Agent(Agent):
             if k > 0:
                 input_diff_cost += 0.01 * ((u[0, k] - u[0, k-1])**2 + (u[1, k] - u[1, k-1])**2)
 
+            # Distance cost
+            for other_vehicle in self.agent_vehicles:
+                dist = ca.norm_2(x[:2, k] - other_vehicle.position)
+                # in casadi, use ca.if_else to branch
+                distance_cost += ca.if_else(
+                    dist < 1.0, # if-statement
+                    1000 / (dist + 1e-6)**2,  # if True 
+                    100 / (dist + 1e-6)**2    # if False
+                )
+
+            # Collision cost
+            collision_cost += 0
+        
+
         # final state cost
         ref_traj_index = min(closest_index + N, self.reference_states.shape[0] - 1)
         desired_final_state = self.reference_states[ref_traj_index, :]        
@@ -131,7 +147,14 @@ class PureMPC_Agent(Agent):
             (x[2, -1] - desired_final_state[3])**2 # heading angle
         )
 
-        cost = 10 * state_cost + 1 * control_cost + final_state_cost + input_diff_cost
+        cost = (
+            10 * state_cost
+            + 1 * control_cost
+            + final_state_cost
+            + input_diff_cost
+            + distance_cost
+            + collision_cost
+        )
 
         # Define the vehicle dynamics using the Kinematic Bicycle Model
         def vehicle_model(x, u):

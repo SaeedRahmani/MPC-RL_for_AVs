@@ -11,7 +11,8 @@ setup(
     install_requires=[
         'gymnasium>=1.0.0a2',
         'numpy>=2.1.2',
-        'highway-env==1.10.1'
+        'highway-env==1.10.1',
+        'hydra-core>=1.3.2'
     ],
     classifiers=[
         'Programming Language :: Python :: 3',  
