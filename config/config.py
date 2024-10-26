@@ -41,3 +41,6 @@ def build_env_config(cfg) -> dict:
         "policy_frequency": 10,
         "simulation_frequency": 30
     }
+
+def build_pure_mpc_agent_config(cfg) -> dict:
+    return cfg["pure_mpc"]

@@ -6,7 +6,8 @@ env:
   order: sorted
   spawn_probability: 0.3
 pure_mpc:
-
+  horizon: 16
+  render: False
 mpc_rl:
 
 rl:

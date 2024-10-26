@@ -11,9 +11,10 @@ from .utils import MPC_Action, Vehicle
 class PureMPC_Agent(Agent):
     def __init__(
         self, 
-        env: Env, 
-        horizon: int = 16, 
-        render: bool = True
+        env: Env,
+        cfg, 
+        # horizon: int = 16, 
+        # render: bool = True
     ) -> None:
         """
         Initializer.
@@ -23,7 +24,7 @@ class PureMPC_Agent(Agent):
             horizon: int, time horizon parameter in MPC.
             render: bool, whether display the mpc prediction process in a seperate animation.
         """
-        super().__init__(env, horizon, render)
+        super().__init__(env, cfg)
     
     def __str__(self) -> str:
         return "Pure MPC agent [Receding Horizon Control], Solved by `CasADi` "

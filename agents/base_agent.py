@@ -10,8 +10,9 @@ class Agent:
     def __init__(
         self, 
         env: gym.Env,
-        horizon: int = 6,
-        render: bool = True,
+        cfg,
+        # horizon: int = 6,
+        # render: bool = True,
     ) -> None:
         """
         Initializer.
@@ -23,10 +24,12 @@ class Agent:
         """
         # env config
         self.env = env.unwrapped
-        self.config = self.env.config
-        self.simulate_freq: int = self.env.config['simulation_frequency']
-        self.policy_freq: int = self.env.config['policy_frequency']
-        self.total_vehicles_count = self.env.config["observation"]["vehicles_count"]
+        self.env_config = self.env.config
+        self.config = cfg
+
+        self.simulate_freq: int = self.env_config['simulation_frequency']
+        self.policy_freq: int = self.env_config['policy_frequency']
+        self.total_vehicles_count = self.env_config["observation"]["vehicles_count"]
         self.TTC_threshold: float = 0.5
 
         # observation
@@ -35,11 +38,11 @@ class Agent:
         self.agent_vehicles = list()
         
         # MPC
-        self.horizon = horizon
+        self.horizon = self.config["horizon"]
         self.dt: float = 1 / self.policy_freq # delta T for MPC decision-making
                 
         # render
-        self.render = render
+        self.render = self.config["render"]
         self.num_frames_in_dt: int = self.simulate_freq // self.policy_freq
 
     def __str__(self) -> str:
