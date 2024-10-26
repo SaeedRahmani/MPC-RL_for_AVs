@@ -1,28 +1,26 @@
 """ Pure MPC agent """
 
-import numpy as np
-import matplotlib.pyplot as plt
-from gymnasium import Env
 import casadi as ca
+import matplotlib.pyplot as plt
+import numpy as np
+from gymnasium import Env
 
 from .base_agent import Agent
 from .utils import MPC_Action, Vehicle
+
 
 class PureMPC_Agent(Agent):
     def __init__(
         self, 
         env: Env,
-        cfg, 
-        # horizon: int = 16, 
-        # render: bool = True
+        cfg: dict, 
     ) -> None:
         """
         Initializer.
         
         Args:
             env: gym.Env, a highway-env gymnasium environment to retrieve the configuration.
-            horizon: int, time horizon parameter in MPC.
-            render: bool, whether display the mpc prediction process in a seperate animation.
+            cfg: 
         """
         super().__init__(env, cfg)
     
@@ -135,7 +133,8 @@ class PureMPC_Agent(Agent):
                 )
 
             # Collision cost
-            collision_penalty_applied = 0  # Flag to track if a collision penalty has been applied
+            collision_penalty_applied = 0   # flag: whether apply collision penalty on speed at this timestep
+            collision_points = list()       # list: collect all the collision conflict points
 
             for other_vehicle in self.agent_vehicles:
                 # Get positions of the ego vehicle and the other vehicle
@@ -166,13 +165,14 @@ class PureMPC_Agent(Agent):
                 
 
                 # Calculate collision cost based on TTC thresholds
-                collision_condition = ca.logic_or(ttc_x < self.ttc_threshold, ttc_y < self.ttc_threshold)  # Use ca.or_ for logical OR
+                collision_condition = ca.logic_or(ttc_x < self.ttc_threshold, ttc_y < self.ttc_threshold) # Use ca.or_ for logical OR
+                collision_penalty_applied = ca.logic_or(collision_condition, collision_penalty_applied) 
 
-                # Update collision penalty flag if any collision condition is met
-                collision_penalty_applied = ca.if_else(collision_condition, 1, collision_penalty_applied)
+                # # Update collision penalty flag if any collision condition is met
+                # collision_penalty_applied = ca.if_else(collision_condition, 1, collision_penalty_applied)
 
             # Apply penalty if not already applied
-            collision_cost += ca.if_else(collision_penalty_applied == 0, 3000 * x[3, k]**2, 0)
+            collision_cost += ca.if_else(collision_penalty_applied, 30 * x[3, k]**2, 0)
             
             # Update other vehicles' location (constant speed)
             for other_vehicle in self.agent_vehicles:
@@ -235,6 +235,7 @@ class PureMPC_Agent(Agent):
         # Define bounds on control inputs
         lbx = []
         ubx = []
+        
         # Bounds on the state variables (no specific bounds for now)
         for _ in range(N + 1):
             lbx += [-500, -500, -ca.pi, 0]  # Lower bounds [x, y, theta, v]

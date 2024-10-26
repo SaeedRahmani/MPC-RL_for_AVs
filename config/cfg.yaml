@@ -1,6 +1,6 @@
 env:
-  vehicles_count: 30
-  initial_vehicle_count: 15
+  vehicles_count: 10
+  initial_vehicle_count: 1
   absolute: True
   normalize: False
   order: sorted

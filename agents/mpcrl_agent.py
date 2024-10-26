@@ -1,11 +1,12 @@
 """ MPC+RL agent """
 
-import numpy as np
-import matplotlib.pyplot as plt
-from gymnasium import Env
 import casadi as ca
+import matplotlib.pyplot as plt
+import numpy as np
+from gymnasium import Env
 
 from .pure_mpc_agent import PureMPC_Agent
+
 
 class MPCRL_Agent(PureMPC_Agent):
     ...

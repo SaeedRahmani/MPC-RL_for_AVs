@@ -1,5 +1,6 @@
 import numpy as np
 
+
 def build_env_config(cfg) -> dict:
     """
     Build the configuration used for Env `Highway-env:Intersection-v1`

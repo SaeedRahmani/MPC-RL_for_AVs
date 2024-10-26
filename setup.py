@@ -1,4 +1,4 @@
-from setuptools import setup, find_packages
+from setuptools import find_packages, setup
 
 setup(
     name='mpcrl',  
@@ -12,7 +12,8 @@ setup(
         'gymnasium>=1.0.0a2',
         'numpy>=2.1.2',
         'highway-env==1.10.1',
-        'hydra-core>=1.3.2'
+        'hydra-core>=1.3.2',
+        'stable-baselines3==2.4'
     ],
     classifiers=[
         'Programming Language :: Python :: 3',  

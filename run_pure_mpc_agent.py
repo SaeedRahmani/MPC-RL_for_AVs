@@ -1,11 +1,12 @@
-import hydra
 import gymnasium as gym
 import highway_env
+import hydra
 import numpy as np
 
-from agents.pure_mpc_agent import PureMPC_Agent
 from agents.mpcrl_agent import MPCRL_Agent
+from agents.pure_mpc_agent import PureMPC_Agent
 from config.config import build_env_config, build_pure_mpc_agent_config
+
 
 @hydra.main(config_name="cfg", config_path="./config", version_base="1.3")
 def test_pure_mpc_agent(cfg):

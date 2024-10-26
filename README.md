@@ -21,11 +21,14 @@ pip install -e .
 
 ## To-do List
 
-- [ ] `Config`: Add `hydra` and `YAML` configuration files for better organization of training and testing parameters.
-- [ ] `MPC`:  Implement collision cost and vehicle dynamics updates for other agent vehicles
+- [ ] `RL`: Add stable_baselines as dependencies.
+- [ ] `Config`: Make a full configuration file and output structure, loggings.
+- [ ] `MPC`: generate new reference speed if collision is detected.
 - [ ] `MPC+RL`: Integrate RL components into the `PureMPC_Agent` for enhanced decision-making in more complex scenarios.
+- [ ] `MPC`:  Adapt collision cost and vehicle dynamics updates for other agent vehicles
 - [ ] `Animation`:  Enhance the visualization by adding vehicle shapes and orientations to improve realism and interpretability.
 
 ## Completed
 
+- [x] `Config`: Add `hydra` and `YAML` configuration files for better organization of training and testing parameters.
 - [x] `MPC`:   Fixed the issue where the MPC agent did not follow the reference trajectory correctly.

@@ -1,9 +1,12 @@
 """ Base class for all the MPC-related agents """
 
-import numpy as np
-import gymnasium as gym
 from typing import Union
+
+import gymnasium as gym
+import numpy as np
+
 from .utils import MPC_Action, Vehicle
+
 
 class Agent:
 
