@@ -27,6 +27,25 @@ class PureMPC_Agent(Agent):
     def __str__(self) -> str:
         return "Pure MPC agent [Receding Horizon Control], Solved by `CasADi` "
       
+    def predict(self, obs, return_numpy = True):
+        self._parse_obs(obs)
+        self.is_collision_detected, collision_points = self.check_potential_collision()
+        ref = self.reference_states()[:, :2]
+        
+        closest_points = []
+        if self.is_collision_detected:
+            for point in collision_points:
+                distances = np.linalg.norm(ref - point, axis=1) 
+                closest_index = np.argmin(distances)
+                closest_points.append((ref[closest_index], closest_index))
+            self.collision_point = min(closest_points, key=lambda x: x[1])[0]
+        else:
+            self.collision_point = None
+            
+        print(self.collision_point)
+        mpc_action = self._solve()
+        return mpc_action.numpy() if return_numpy else mpc_action
+      
     def _solve(self) -> MPC_Action:
         
         # MPC parameters
@@ -40,9 +59,8 @@ class PureMPC_Agent(Agent):
         x = ca.SX.sym('x', n_states, N + 1)  # State trajectory over N + 1 time steps
         u = ca.SX.sym('u', n_controls, N)    # Control inputs over N time steps
         
-        # TODO: Reference trajectory
-        ref = self.reference_states
-        distances = [np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) for point in self.reference_states]
+        ref = self.reference_states(collision_points=self.collision_point)
+        distances = [np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) for point in ref]
         closest_index = np.argmin(distances)
 
         # Define the cost function (objective to minimize)
@@ -55,7 +73,7 @@ class PureMPC_Agent(Agent):
         collision_cost = 0
         
         for k in range(N):
-            ref_traj_index = min(closest_index + k, self.reference_states.shape[0] - 1)
+            ref_traj_index = min(closest_index + k, ref.shape[0] - 1)
 
             ref_v = ref[ref_traj_index,2]
             ref_heading = ref[ref_traj_index,3]
@@ -156,8 +174,8 @@ class PureMPC_Agent(Agent):
                 other_speed_y = other_vehicle.speed * ca.sin(other_vehicle.heading)
                 
                 # Calculate relative velocities in x and y
-                relative_velocity_x = ego_speed_x - other_speed_x
-                relative_velocity_y = ego_speed_y - other_speed_y
+                relative_velocity_x = ca.fabs(ego_speed_x - other_speed_x)
+                relative_velocity_y = ca.fabs(ego_speed_y - other_speed_y)
                 
                 # Calculate TTC for x and y directions using CasADi
                 ttc_x = ca.if_else(relative_velocity_x < 0, dist_to_other_vehicle_x / (relative_velocity_x + 1e-6), ca.inf)
@@ -168,9 +186,6 @@ class PureMPC_Agent(Agent):
                 collision_condition = ca.logic_or(ttc_x < self.ttc_threshold, ttc_y < self.ttc_threshold) # Use ca.or_ for logical OR
                 collision_penalty_applied = ca.logic_or(collision_condition, collision_penalty_applied) 
 
-                # # Update collision penalty flag if any collision condition is met
-                # collision_penalty_applied = ca.if_else(collision_condition, 1, collision_penalty_applied)
-
             # Apply penalty if not already applied
             collision_cost += ca.if_else(collision_penalty_applied, 30 * x[3, k]**2, 0)
             
@@ -180,8 +195,8 @@ class PureMPC_Agent(Agent):
         
 
         # final state cost
-        ref_traj_index = min(closest_index + N, self.reference_states.shape[0] - 1)
-        desired_final_state = self.reference_states[ref_traj_index, :]        
+        ref_traj_index = min(closest_index + N, ref.shape[0] - 1)
+        desired_final_state = self.reference_states()[ref_traj_index, :]        
         final_state_cost += 100 * (
             (x[0, -1] - desired_final_state[0])**2 + 
             (x[1, -1] + desired_final_state[1])**2 + 
@@ -298,7 +313,7 @@ class PureMPC_Agent(Agent):
     
     def plot(self, width: float = 100, height: float = 100):
         plt.clf() 
-        plt.scatter(self.reference_states[:,0], self.reference_states[:,1], c='grey', s=1)
+        plt.scatter(self.reference_states()[:,0], self.reference_states()[:,1], c='grey', s=1)
         plt.scatter(self.ego_vehicle.position[0], self.ego_vehicle.position[1])
         plt.axis('on')  
         plt.xlim([-width, width])
