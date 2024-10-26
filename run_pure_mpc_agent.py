@@ -20,7 +20,7 @@ def test_pure_mpc_agent(cfg):
     mpc_agent = PureMPC_Agent(env, pure_mpc_agent_config)
 
     observation, _ = env.reset()
-    print(observation)
+    # print(observation)
 
     for i in range(100):
         # getting action from agent

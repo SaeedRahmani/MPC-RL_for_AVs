@@ -8,6 +8,7 @@ env:
 pure_mpc:
   horizon: 16
   render: False
+  ttc_threshold: 2
 mpc_rl:
 
 rl:

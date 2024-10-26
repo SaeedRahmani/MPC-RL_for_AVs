@@ -79,7 +79,7 @@ class PureMPC_Agent(Agent):
             
             total_d = ca.vertcat(d_perp, d_para)
 
-            print(f"ref speed:{ref_v}, ref x: {ref[ref_traj_index,0]}, ref y: {ref[ref_traj_index,1]}")
+            # print(f"ref speed:{ref_v}, ref x: {ref[ref_traj_index,0]}, ref y: {ref[ref_traj_index,1]}")
             perp_deviation = ca.norm_2(ca.mtimes(matrix_perp, total_d))
             para_deviation = ca.norm_2(ca.mtimes(matrix_para, total_d))
 
@@ -166,7 +166,7 @@ class PureMPC_Agent(Agent):
                 
 
                 # Calculate collision cost based on TTC thresholds
-                collision_condition = ca.logic_or(ttc_x < self.TTC_threshold, ttc_y < self.TTC_threshold)  # Use ca.or_ for logical OR
+                collision_condition = ca.logic_or(ttc_x < self.ttc_threshold, ttc_y < self.ttc_threshold)  # Use ca.or_ for logical OR
 
                 # Update collision penalty flag if any collision condition is met
                 collision_penalty_applied = ca.if_else(collision_condition, 1, collision_penalty_applied)
@@ -197,6 +197,11 @@ class PureMPC_Agent(Agent):
             + distance_cost
             + collision_cost
         )
+
+        # Define a function to evaluate each cost component based on the optimized state and control inputs
+        cost_fn = ca.Function('cost_fn', [ca.vertcat(ca.reshape(x, -1, 1), ca.reshape(u, -1, 1))],
+                              [state_cost, control_cost, final_state_cost, input_diff_cost, distance_cost, collision_cost])
+
 
         # Define the vehicle dynamics using the Kinematic Bicycle Model
         def vehicle_model(x, u):
@@ -242,7 +247,12 @@ class PureMPC_Agent(Agent):
             ubx += [5, ca.pi / 3]    # Upper bounds [acceleration, steer_angle]
 
         # Create the optimization problem
-        nlp = {'x': opt_variables, 'f': cost, 'g': g}
+        nlp = {
+            'x': opt_variables, # decision variables
+            'f': cost,          # objective (total cost to minimize)
+            'g': g,             # constraint
+        }
+        
         opts = {
             'ipopt.print_level':0, 
             'print_time':0,
@@ -264,6 +274,22 @@ class PureMPC_Agent(Agent):
         if not solver.stats()['success']:
             print("NOTICE: Not found solution")
             
+        """ Print costs """
+        # Extract the solution values
+        opt_values = sol['x'].full()
+        u_opt = opt_values[n_states * (N + 1):].reshape((N, n_controls))
+        
+        # Calculate and print the state cost and other cost components
+        state_cost_val, control_cost_val, final_state_cost_val, input_diff_cost_val, distance_cost_val, collision_cost_val = cost_fn(opt_values)
+        
+        print("\n------")
+        print(f"State Cost: {state_cost_val}")
+        print(f"Control Cost: {control_cost_val}")
+        print(f"Final State Cost: {final_state_cost_val}")
+        print(f"Input Difference Cost: {input_diff_cost_val}")
+        print(f"Distance Cost: {distance_cost_val}")
+        print(f"Collision Cost: {collision_cost_val}")
+
         u_opt = sol['x'][n_states * (N + 1):].full().reshape((N, n_controls))
         
         mpc_action = MPC_Action(acceleration=u_opt[0, 0], steer=u_opt[0, 1])

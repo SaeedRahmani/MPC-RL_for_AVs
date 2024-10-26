@@ -30,7 +30,6 @@ class Agent:
         self.simulate_freq: int = self.env_config['simulation_frequency']
         self.policy_freq: int = self.env_config['policy_frequency']
         self.total_vehicles_count = self.env_config["observation"]["vehicles_count"]
-        self.TTC_threshold: float = 0.5
 
         # observation
         self.observed_vehicles_count = 0 # not including ego vehicle
@@ -38,6 +37,7 @@ class Agent:
         self.agent_vehicles = list()
         
         # MPC
+        self.ttc_threshold: float = self.config["ttc_threshold"]
         self.horizon = self.config["horizon"]
         self.dt: float = 1 / self.policy_freq # delta T for MPC decision-making
                 
