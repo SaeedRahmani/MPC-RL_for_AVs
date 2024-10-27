@@ -5,18 +5,29 @@ env:
   normalize: False
   order: sorted
   spawn_probability: 0.3
+
 pure_mpc:
   horizon: 16
   render: False
   ttc_threshold: 2
+  weight_state: 1
+  weight_control: 1
+  weight_final_state: 1
+  weight_input_diff: 1
+  weight_distance: 1
+  weight_collision: 1
+
 mpc_rl:
+
   v0: # reference speed version
     action_space_dim: 10
     algo: a2c
     lr: 0.0001
     total_timesteps: 2e3      
     show_progress_bar: True
+
   v1: # dynamic weights version
     action_space_dim: 10
     algo: ppo
+
 rl:

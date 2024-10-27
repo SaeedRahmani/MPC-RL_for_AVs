@@ -9,11 +9,12 @@ setup(
     url='https://github.com/Zhenlin-Xu/mpcrl',
     packages=find_packages(),
     install_requires=[
-        'gymnasium>=1.0.0',
-        'numpy>=2.1.2',
-        'highway-env==1.10.1',
-        'hydra-core>=1.3.2',
-        'stable-baselines3==2.4'
+        'gymnasium==0.29.1',
+        'numpy==2.1.2',
+        'highway-env==1.9.1',
+        'casadi==3.6.6',
+        'hydra-core==1.3.2',
+        'stable-baselines3==2.3.1'
     ],
     classifiers=[
         'Programming Language :: Python :: 3',  

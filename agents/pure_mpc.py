@@ -23,7 +23,20 @@ class PureMPC_Agent(Agent):
             cfg: 
         """
         super().__init__(env, cfg)
-    
+
+        # Load weights for each cost component from the configuration
+        self.default_weights = {
+            key: self.config[f"weight_{key}"]
+            for key in [
+                "state", 
+                "control", 
+                "distance", 
+                "collision", 
+                "input_diff", 
+                "final_state"
+            ]
+        }
+
     def __str__(self) -> str:
         return "Pure MPC agent [Receding Horizon Control], Solved by `CasADi` "
       
@@ -31,13 +44,39 @@ class PureMPC_Agent(Agent):
             self, 
             obs, 
             return_numpy = True,
-            weights = None,
+            weights_from_RL = None,
             ref_speed = None,
         ):
         self._parse_obs(obs)
         self.is_collision_detected, collision_points = self.check_potential_collision()
         ref = self.global_reference_states[:, :2]
         
+        if weights_from_RL is not None:
+            weights = self.default_weights
+        else:
+            weights = {
+                key: weights_from_RL[i] 
+                for i, key in enumerate([
+                    "state", 
+                    "control", 
+                    "distance", 
+                    "collision", 
+                    "input_diff", 
+                    "final_state"
+                ])
+            }
+            
+        weights = {
+            key: weight for key, weight in zip([
+                "state", 
+                "control", 
+                "distance", 
+                "collision", 
+                "input_diff", 
+                "final_state"], 
+                weights_from_RL)
+            }
+
         closest_points = []
         if self.is_collision_detected:
             for point in collision_points:
@@ -48,10 +87,10 @@ class PureMPC_Agent(Agent):
         else:
             self.collision_point_index = None
             
-        mpc_action = self._solve()
+        mpc_action = self._solve(weights)
         return mpc_action.numpy() if return_numpy else mpc_action
       
-    def _solve(self) -> MPC_Action:
+    def _solve(self, weights: dict[str, float]) -> MPC_Action:
         
         # MPC parameters
         N = self.horizon
@@ -208,12 +247,12 @@ class PureMPC_Agent(Agent):
         )
 
         cost = (
-            10 * state_cost
-            + 1 * control_cost
-            + final_state_cost
-            + input_diff_cost
-            + distance_cost
-            + collision_cost
+            state_cost * weights["weight_state"] + # old weight: 10
+            control_cost * weights["weight_control"] + # old weight: 1
+            distance_cost * weights["weight_distance"] +
+            collision_cost * weights["weight_collision"] + 
+            input_diff_cost * weights["weight_input_diff"] +
+            final_state_cost * weights["weight_final_state"]
         )
 
         # Define a function to evaluate each cost component based on the optimized state and control inputs
