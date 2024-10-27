@@ -17,12 +17,12 @@ def test_trajectory(cfg):
 
     mpc_agent = PureMPC_Agent(env, pure_mpc_agent_config)
     
-    xyv = mpc_agent.reference_states[:,:3]
-    norm = plt.Normalize(xyv[:, 2].min(), xyv[:, 2].max())
-    colors = cm.viridis(norm(xyv[:, 2]))
-    scatter = plt.scatter(xyv[:, 0], xyv[:, 1], c=colors, s=3)  # 's' 控制点的大小
+    xyv = mpc_agent.update_reference_states()[:,:3]
+    # norm = plt.Normalize(xyv[:, 2].min(), xyv[:, 2].max())
+    # colors = cm.viridis(norm(xyv[:, 2]))
+    scatter =  plt.scatter(xyv[:, 0], xyv[:, 1], c=xyv[:, 2], cmap='viridis', s=3)
     plt.colorbar(scatter, label='Speed') 
     plt.show()
-    print(xyv)
+
 if __name__ == "__main__":
     test_trajectory()

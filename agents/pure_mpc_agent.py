@@ -30,7 +30,7 @@ class PureMPC_Agent(Agent):
     def predict(self, obs, return_numpy = True):
         self._parse_obs(obs)
         self.is_collision_detected, collision_points = self.check_potential_collision()
-        ref = self.reference_states()[:, :2]
+        ref = self.global_reference_states[:, :2]
         
         closest_points = []
         if self.is_collision_detected:
@@ -38,11 +38,10 @@ class PureMPC_Agent(Agent):
                 distances = np.linalg.norm(ref - point, axis=1) 
                 closest_index = np.argmin(distances)
                 closest_points.append((ref[closest_index], closest_index))
-            self.collision_point = min(closest_points, key=lambda x: x[1])[0]
+            self.collision_point_index = min(closest_points, key=lambda x: x[1])[1]
         else:
-            self.collision_point = None
+            self.collision_point_index = None
             
-        print(self.collision_point)
         mpc_action = self._solve()
         return mpc_action.numpy() if return_numpy else mpc_action
       
@@ -59,7 +58,7 @@ class PureMPC_Agent(Agent):
         x = ca.SX.sym('x', n_states, N + 1)  # State trajectory over N + 1 time steps
         u = ca.SX.sym('u', n_controls, N)    # Control inputs over N time steps
         
-        ref = self.reference_states(collision_points=self.collision_point)
+        ref = self.update_reference_states(index=self.collision_point_index)
         distances = [np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) for point in ref]
         closest_index = np.argmin(distances)
 
@@ -80,24 +79,24 @@ class PureMPC_Agent(Agent):
             
             """ CVXPY version """
             
-            d_perp = x[0, k] - ref[ref_traj_index,0]
-            d_para = x[1, k] - ref[ref_traj_index,1]
+            # d_perp = x[0, k] - ref[ref_traj_index,0]
+            # d_para = x[1, k] - ref[ref_traj_index,1]
             
-            c_perp, s_perp = ca.cos(ref_heading + ca.pi/2), ca.sin(ref_heading + ca.pi/2)
-            matrix_perp = ca.SX([
-                [c_perp**2, c_perp*s_perp],
-                [c_perp*s_perp, s_perp**2]])
+            # c_perp, s_perp = ca.cos(ref_heading + ca.pi/2), ca.sin(ref_heading + ca.pi/2)
+            # matrix_perp = ca.SX([
+            #     [c_perp**2, c_perp*s_perp],
+            #     [c_perp*s_perp, s_perp**2]])
             
-            c_para, s_para = ca.cos(ref_heading), ca.sin(ref_heading)
-            matrix_para = ca.SX([
-                [c_para**2, c_para*s_para],
-                [c_para*s_para, s_para**2]])
+            # c_para, s_para = ca.cos(ref_heading), ca.sin(ref_heading)
+            # matrix_para = ca.SX([
+            #     [c_para**2, c_para*s_para],
+            #     [c_para*s_para, s_para**2]])
             
-            total_d = ca.vertcat(d_perp, d_para)
+            # total_d = ca.vertcat(d_perp, d_para)
 
-            # print(f"ref speed:{ref_v}, ref x: {ref[ref_traj_index,0]}, ref y: {ref[ref_traj_index,1]}")
-            perp_deviation = ca.norm_2(ca.mtimes(matrix_perp, total_d))
-            para_deviation = ca.norm_2(ca.mtimes(matrix_para, total_d))
+            # # print(f"ref speed:{ref_v}, ref x: {ref[ref_traj_index,0]}, ref y: {ref[ref_traj_index,1]}")
+            # perp_deviation = ca.norm_2(ca.mtimes(matrix_perp, total_d))
+            # para_deviation = ca.norm_2(ca.mtimes(matrix_para, total_d))
 
             """ ChatGPT version"""
 
@@ -152,7 +151,6 @@ class PureMPC_Agent(Agent):
 
             # Collision cost
             collision_penalty_applied = 0   # flag: whether apply collision penalty on speed at this timestep
-            collision_points = list()       # list: collect all the collision conflict points
 
             for other_vehicle in self.agent_vehicles:
                 # Get positions of the ego vehicle and the other vehicle
@@ -174,20 +172,19 @@ class PureMPC_Agent(Agent):
                 other_speed_y = other_vehicle.speed * ca.sin(other_vehicle.heading)
                 
                 # Calculate relative velocities in x and y
-                relative_velocity_x = ca.fabs(ego_speed_x - other_speed_x)
-                relative_velocity_y = ca.fabs(ego_speed_y - other_speed_y)
+                relative_velocity_x = ego_speed_x - other_speed_x
+                relative_velocity_y = ego_speed_y - other_speed_y
                 
                 # Calculate TTC for x and y directions using CasADi
                 ttc_x = ca.if_else(relative_velocity_x < 0, dist_to_other_vehicle_x / (relative_velocity_x + 1e-6), ca.inf)
                 ttc_y = ca.if_else(relative_velocity_y < 0, dist_to_other_vehicle_y / (relative_velocity_y + 1e-6), ca.inf)
                 
-
                 # Calculate collision cost based on TTC thresholds
                 collision_condition = ca.logic_or(ttc_x < self.ttc_threshold, ttc_y < self.ttc_threshold) # Use ca.or_ for logical OR
                 collision_penalty_applied = ca.logic_or(collision_condition, collision_penalty_applied) 
 
             # Apply penalty if not already applied
-            collision_cost += ca.if_else(collision_penalty_applied, 30 * x[3, k]**2, 0)
+            collision_cost += ca.if_else(collision_penalty_applied, 3 * x[3, k]**2, 0)
             
             # Update other vehicles' location (constant speed)
             for other_vehicle in self.agent_vehicles:
@@ -196,7 +193,7 @@ class PureMPC_Agent(Agent):
 
         # final state cost
         ref_traj_index = min(closest_index + N, ref.shape[0] - 1)
-        desired_final_state = self.reference_states()[ref_traj_index, :]        
+        desired_final_state = ref[ref_traj_index, :]        
         final_state_cost += 100 * (
             (x[0, -1] - desired_final_state[0])**2 + 
             (x[1, -1] + desired_final_state[1])**2 + 
@@ -313,7 +310,7 @@ class PureMPC_Agent(Agent):
     
     def plot(self, width: float = 100, height: float = 100):
         plt.clf() 
-        plt.scatter(self.reference_states()[:,0], self.reference_states()[:,1], c='grey', s=1)
+        plt.scatter(self.global_reference_states[:,0], self.global_reference_states[:,1], c='grey', s=1)
         plt.scatter(self.ego_vehicle.position[0], self.ego_vehicle.position[1])
         plt.axis('on')  
         plt.xlim([-width, width])

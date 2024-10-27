@@ -150,9 +150,18 @@ class Agent:
         
         return np.array(trajectory)
 
-    def update_reference_states(self, index) -> np.ndarray:
-        """ Modify the reference speed if collision are detected """
+    def update_reference_states(self, index: int = None) -> np.ndarray:
+        """ 
+        Modify the reference speed, 
+        Set ref speed as zero if collision are detected 
+        """
+        if index is None:
+            return np.copy(self.reference_states)
         
+        assert 0 <= index < self.reference_states.shape[0], "Index is out of bounds"
+        new_reference_states = np.copy(self.reference_states)
+        new_reference_states[:index+1, 2] = 0
+        return new_reference_states
 
     def check_potential_collision(self) -> Tuple[bool, List]:
         is_collision_detected = False
