@@ -10,6 +10,16 @@ from .utils import MPC_Action, Vehicle
 
 
 class PureMPC_Agent(Agent):
+
+    weight_components = [
+        "state", 
+        "control", 
+        "distance", 
+        "collision", 
+        "input_diff", 
+        "final_state"
+    ]
+
     def __init__(
         self, 
         env: Env,
@@ -27,14 +37,7 @@ class PureMPC_Agent(Agent):
         # Load weights for each cost component from the configuration
         self.default_weights = {
             key: self.config[f"weight_{key}"]
-            for key in [
-                "state", 
-                "control", 
-                "distance", 
-                "collision", 
-                "input_diff", 
-                "final_state"
-            ]
+            for key in PureMPC_Agent.weight_components
         }
 
     def __str__(self) -> str:
@@ -56,25 +59,11 @@ class PureMPC_Agent(Agent):
         else:
             weights = {
                 key: weights_from_RL[i] 
-                for i, key in enumerate([
-                    "state", 
-                    "control", 
-                    "distance", 
-                    "collision", 
-                    "input_diff", 
-                    "final_state"
-                ])
+                for i, key in enumerate(PureMPC_Agent.weight_components)
             }
             
         weights = {
-            key: weight for key, weight in zip([
-                "state", 
-                "control", 
-                "distance", 
-                "collision", 
-                "input_diff", 
-                "final_state"], 
-                weights_from_RL)
+            key: weight for key, weight in zip(PureMPC_Agent.weight_components, weights_from_RL)
             }
 
         closest_points = []
