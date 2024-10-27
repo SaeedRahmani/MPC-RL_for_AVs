@@ -11,9 +11,12 @@ pure_mpc:
   ttc_threshold: 2
 mpc_rl:
   v0: # reference speed version
-    obs_space_dim: 
-    action_space_dim:
+    action_space_dim: 10
+    algo: a2c
+    lr: 0.0001
+    total_timesteps: 2e3      
+    show_progress_bar: True
   v1: # dynamic weights version
-    obs_space_dim: 
-    action_space_dim:
+    action_space_dim: 10
+    algo: ppo
 rl:

@@ -28,6 +28,7 @@ class CustomCallback(BaseCallback):
 
     def _on_step(self) -> bool:
         print(self.locals.keys(), self.locals["actions"])
+        self.locals["actions"] = np.array(([0,0]))
         return False  # 继续训练
 
 

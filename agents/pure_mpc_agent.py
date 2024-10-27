@@ -27,7 +27,13 @@ class PureMPC_Agent(Agent):
     def __str__(self) -> str:
         return "Pure MPC agent [Receding Horizon Control], Solved by `CasADi` "
       
-    def predict(self, obs, return_numpy = True):
+    def predict(
+            self, 
+            obs, 
+            return_numpy = True,
+            weights = None,
+            ref_speed = None,
+        ):
         self._parse_obs(obs)
         self.is_collision_detected, collision_points = self.check_potential_collision()
         ref = self.global_reference_states[:, :2]
