@@ -4,7 +4,7 @@ import hydra
 import numpy as np
 
 from agents.mpcrl_agent import MPCRL_Agent
-from agents.pure_mpc_agent import PureMPC_Agent
+from agents.pure_mpc import PureMPC_Agent
 from config.config import build_env_config, build_pure_mpc_agent_config
 
 

@@ -13,17 +13,19 @@ from stable_baselines3.common.callbacks import BaseCallback
 
 from config.config import build_env_config, build_mpcrl_agent_config, build_pure_mpc_agent_config
 from trainers.utils import create_a2c_policy, create_callback_func
-from trainers.mpcrl import A2C_MPC
+from agents.a2c_mpc import A2C_MPC
+from agents.ppo_mpc import PPO_MPC
+
 
 class BaseTrainer:
     """ A base trainer class for reinforcement learning algorithms. """
 
     ALGO: Dict[str, BaseAlgorithm] = {
-        "ppo": PPO,
-        "a2c": A2C,
-        "sac": SAC,
-        "td3": TD3,
-        "ddpg": DDPG,
+        "ppo": PPO_MPC,
+        "a2c": A2C_MPC,
+        # "sac": SAC,
+        # "td3": TD3,
+        # "ddpg": DDPG,
     }
 
     def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict):
@@ -41,7 +43,7 @@ class BaseTrainer:
         self.algo: BaseAlgorithm = self._specify_algo()
 
         # Create the model with a custom policy
-        self.model = A2C_MPC(
+        self.model = PPO_MPC(
             policy=create_a2c_policy(self.mpcrl_cfg["action_space_dim"]),
             env=self.env,
             pure_mpc_cfg=self.pure_mpc_cfg

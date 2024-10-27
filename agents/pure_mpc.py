@@ -5,7 +5,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import Env
 
-from .base_agent import Agent
+from .base import Agent
 from .utils import MPC_Action, Vehicle
 
 
@@ -273,7 +273,7 @@ class PureMPC_Agent(Agent):
         }
         
         opts = {
-            'ipopt.print_level':0, 
+            'ipopt.print_level': 0, 
             'print_time':0,
             'ipopt.max_iter':1000,
             'ipopt.tol':1e-6,
@@ -301,13 +301,13 @@ class PureMPC_Agent(Agent):
         # Calculate and print the state cost and other cost components
         state_cost_val, control_cost_val, final_state_cost_val, input_diff_cost_val, distance_cost_val, collision_cost_val = cost_fn(opt_values)
         
-        print("\n------")
-        print(f"State Cost: {state_cost_val}")
-        print(f"Control Cost: {control_cost_val}")
-        print(f"Final State Cost: {final_state_cost_val}")
-        print(f"Input Difference Cost: {input_diff_cost_val}")
-        print(f"Distance Cost: {distance_cost_val}")
-        print(f"Collision Cost: {collision_cost_val}")
+        # print("\n------")
+        # print(f"State Cost: {state_cost_val}")
+        # print(f"Control Cost: {control_cost_val}")
+        # print(f"Final State Cost: {final_state_cost_val}")
+        # print(f"Input Difference Cost: {input_diff_cost_val}")
+        # print(f"Distance Cost: {distance_cost_val}")
+        # print(f"Collision Cost: {collision_cost_val}")
 
         u_opt = sol['x'][n_states * (N + 1):].full().reshape((N, n_controls))
         

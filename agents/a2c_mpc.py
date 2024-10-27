@@ -14,7 +14,7 @@ from stable_baselines3.common.type_aliases import GymEnv, MaybeCallback, Schedul
 from stable_baselines3.common.utils import explained_variance, obs_as_tensor
 from stable_baselines3.a2c import A2C
 
-from agents.pure_mpc_agent import PureMPC_Agent
+from agents.pure_mpc import PureMPC_Agent
 
 SelfA2C = TypeVar("SelfA2C", bound="A2C")
 
@@ -272,12 +272,15 @@ class A2C_MPC(A2C):
                     clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
 
             # let mpc agent work!
-            mpc_actions = self.mpc_agent.predict(
+            mpc_action = self.mpc_agent.predict(
                 obs=np.squeeze(self._last_obs, axis=0),
                 return_numpy=True,
+                weights=clipped_actions, # (1, 10) as dynamic weights
             )
-            
-            new_obs, rewards, dones, infos = env.step(mpc_actions.reshape((1,2)))
+            # print(clipped_actions.shape)
+            mpc_action = mpc_action.reshape((1,2))
+
+            new_obs, rewards, dones, infos = env.step(mpc_action)
 
             self.num_timesteps += env.num_envs
 
