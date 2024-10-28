@@ -7,9 +7,16 @@ env:
   spawn_probability: 0.3
 
 pure_mpc:
+  # mpc parameters 
   horizon: 16
+  # render options
   render: true
+  render_window_size: 8
+  render_axis_range: 50
+
+  # collision detection parameters
   ttc_threshold: 2
+  detection_distance: 100
   speed_override: 0
   weight_state: 10
   weight_control: 1

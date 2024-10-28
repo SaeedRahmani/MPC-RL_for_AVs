@@ -31,18 +31,24 @@ class PureMPC_Agent(Agent):
         
         Args:
             env: gym.Env, a highway-env gymnasium environment to retrieve the configuration.
-            cfg: 
+            cfg: configuration dict for pure mpc agent.
         """
         super().__init__(env, cfg)
 
-        if cfg["render"]:
-            self.fig, self.ax = plt.subplots(figsize=(4, 4))
+        # Load collision detection parameters from config
+        self.detection_dist = self.config.get("detection_distance", 100)
+        self.ttc_threshold = self.config.get("ttc_threshold", 1)
 
-        # Load weights for each cost component from the configuration
+        # Load weights for each cost component from config
         self.default_weights = {
             f"weight_{key}": self.config[f"weight_{key}"]
             for key in PureMPC_Agent.weight_components
         }
+
+        # Initialize the matplotlib fig and ax if rendering is enabled
+        if self.config.get("render", False):
+            window_size = self.config.get("render_window_size", 5)
+            self.fig, self.ax = plt.subplots(figsize=(window_size, window_size))
 
         self.last_acc = 0
 
@@ -86,10 +92,8 @@ class PureMPC_Agent(Agent):
             }
 
         """ Update ref speed """
-        self.is_collision_detected, collision_points = self.check_potential_collision()
-        ref = self.global_reference_states[:, :2]
-
-        distances = [np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) for point in ref]
+        ref_trajectory = self.reference_states[:, :2]
+        distances = [np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) for point in ref_trajectory]
         self.ego_index = np.argmin(distances)
 
         # closest_points = []
@@ -325,91 +329,112 @@ class PureMPC_Agent(Agent):
         mpc_action = MPC_Action(acceleration=u_opt[0, 0], steer=u_opt[0, 1])
         return mpc_action
     
-    def plot(self, width: float = 50, height: float = 50):
+    def plot(self):
+        """ Visualize the MPC solving process """
+        x_range = self.config.get("render_axis_range", 50)
+        
+        # Clear the content of the last frame
         self.ax.clear()
         
-        # Set limits and invert y-axis once per plot call
-        self.ax.set_xlim([-width, width])
-        self.ax.set_ylim([-height, height])
+        # Set limits and invert y-axis
+        self.ax.set_xlim([-x_range, x_range])
+        self.ax.set_ylim([-x_range, x_range])  # y_range is set the same as x_range
         self.ax.invert_yaxis()
         self.ax.grid(True)
         
-        # Scatter and plot on the existing ax
-        self.ax.scatter(self.global_reference_states[:, 0], self.global_reference_states[:, 1], c='grey', s=1)
-        self.ax.scatter(self.ego_vehicle.position[0], self.ego_vehicle.position[1], c='blue', s=5)
+        # Plot reference trajectory in grey
+        self.ax.scatter(
+            x=self.reference_trajectory[:, 0], 
+            y=self.reference_trajectory[:, 1], 
+            color='grey', 
+            s=1,
+        )
+        
+        # Plot the ego vehicle's location in blue
+        ego_x, ego_y = self.ego_vehicle.position
+        self.ax.scatter(
+            x=ego_x, 
+            y=ego_y, 
+            color='blue', 
+            s=5
+        )
 
+        # Plot the agent vehicles' locations in red
         for agent_vehicle in self.agent_vehicles:
-            self.ax.scatter(agent_vehicle.position[0], agent_vehicle.position[1], c='red', s=5)
+            agent_x, agent_y = agent_vehicle.position
+            self.ax.scatter(
+                x=agent_x, 
+                y=agent_y, 
+                color='red', 
+                s=5
+            )
 
+        # Plot the potential collisions
+        # lineplot with x-markers at each end
         for current_loc, conflict_loc in zip(self.agent_current_locations, self.conflict_points):
             if conflict_loc is not None:
                 xs = [current_loc[0], conflict_loc[0]]
                 ys = [current_loc[1], conflict_loc[1]]
-                self.ax.plot(xs, ys, 'x-', 5)
-                self.ax.scatter(current_loc[0], current_loc[1], s=5)
-
-        for agent, point in zip(self.agent_vehicles, self.conflict_points):
-            # self.ax.scatter(agent.position[0], agent.position[1], c='red', s=5)
-            if point is not None:
-                xs, ys = [agent.position[0], point[0]], [agent.position[1], point[1]]
-                self.ax.plot(xs, ys, 'x-')
-
+                self.ax.plot(xs, ys, 'x-', markersize=5)  # Use markersize for clarity
 
         # Pause briefly to create animation effect
-        plt.pause(0.1) 
+        plt.pause(0.1)
 
     def _check_collision(self) -> bool:
+        """ Collision detection """
 
-        ref_trajectory = self.reference_states[:,:2]
-        ego_path_lineString = LineString(ref_trajectory)
-        ego_index = np.argmin([np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) 
-                               for point in ref_trajectory])
+        # Create a LineString for ego reference trajectory
+        ego_path_lineString = LineString(self.reference_trajectory)
 
+        # Get the index of closest point on the reference trajectory towards the ego vehicle
+        ego_location = np.array(self.ego_vehicle.position)
+        ego_index = np.argmin([
+            np.linalg.norm(ego_location - np.array(trajectory_point)) 
+            for trajectory_point in self.reference_trajectory
+        ])
+        self.ego_index = ego_index
+
+        # Use self. for visualization (self.plot)
         self.agent_current_locations = list()
         self.agent_future_locations = list()
         self.conflict_points = list()
+        self.conflict_index = list()
         self.agent_collide = list()
 
-        detection_dist: float = 100 
-        for agent_id, agent_veh in enumerate(self.agent_vehicles):
+        for _, agent_veh in enumerate(self.agent_vehicles):
             # store the current location of agent vehicle
-            self.agent_current_locations.append(
-                np.array(agent_veh.position)
-            )
+            agent_current_location = np.array(agent_veh.position)
+            self.agent_current_locations.append(agent_current_location)
+
             # store the future location of agent vehicle
-            self.agent_future_locations.append(
-                np.array(agent_veh.position) + detection_dist * np.array([
-                    np.cos(agent_veh.heading), np.sin(agent_veh.heading)
-                    # agent_veh.cosh, agent_veh.sinh
-                    ])
-            )
-            # create a LineString object for the path between current and future locations
-            agent_path_lineString = LineString([
-                np.array(agent_veh.position),
-                np.array(agent_veh.position) + detection_dist * np.array([
+            agent_future_location = agent_current_location + self.detection_dist * np.array([
                     np.cos(agent_veh.heading), np.sin(agent_veh.heading)])
-            ])
+            self.agent_future_locations.append(agent_future_location)
+            
+            # create a LineString object for the path between current and future locations
+            agent_path_lineString = LineString([agent_current_location, agent_future_location])
+
             # check whether there is an intersection
             intersection = ego_path_lineString.intersection(agent_path_lineString)
             if not intersection.is_empty:
                 if intersection.geom_type == 'Point':
-                    agent_index = np.argmin([np.linalg.norm(np.array((intersection.x, intersection.y)) - np.array(point[:2])) 
-                        for point in ref_trajectory])
+                    conflict_location = np.array((intersection.x, intersection.y))
+                    agent_index = np.argmin([np.linalg.norm(conflict_location - point)
+                        for point in self.reference_trajectory])
                     if ego_index < agent_index:
-                        agent_dist = np.linalg.norm(
-                            np.array(agent_veh.position) - np.array((intersection.x, intersection.y))
-                        )
+                        agent_dist = np.linalg.norm(agent_current_location - conflict_location)
                         agent_speed = agent_veh.speed
                         agent_eta = agent_dist / agent_speed
 
-                        ego_dist = LineString(ref_trajectory[ego_index: agent_index+1,:]).length
-                        ego_speed = self.ego_vehicle.speed
+                        ego_dist = LineString(self.reference_trajectory[ego_index: agent_index+1,:]).length
+                        # ego_speed = self.ego_vehicle.speed
                         ego_eta = self.calculate_ego_eta(ego_dist, ego_index, self.last_acc, max_speed=10) 
 
-                        if np.abs(ego_eta - agent_eta) < self.config["ttc_threshold"]:
+                        if np.abs(ego_eta - agent_eta) < self.ttc_threshold:
                             print(np.abs(ego_eta - agent_eta), agent_eta)
                             self.agent_collide.append(True)
                             self.conflict_points.append((intersection.x, intersection.y))
+                            self.conflict_index.append(agent_index)
                         else:
                             self.agent_collide.append(False)
                             self.conflict_points.append(None)
@@ -464,3 +489,33 @@ class PureMPC_Agent(Agent):
             # Distance is within reach before hitting max speed
             achievable_speed = np.sqrt(2 * acceleration * distance + adjusted_speed**2)
             return achievable_speed
+
+    def update_reference_states(
+            self, 
+            speed_override = None
+        ) -> np.ndarray:
+        """ 
+        Modify the reference speed, 
+        Set ref speed as zero if collision are detected 
+        """
+        if not self.is_collide:
+            # reference speed as 10 
+            return np.copy(self.reference_states)
+        else:
+            # deepcopy a new reference state
+            new_reference_states = np.copy(self.reference_states)
+
+            # override the speed, given speed_override
+            if isinstance(speed_override, int):
+                new_reference_states[:, 2] = speed_override
+
+            earliest_conflict_index = np.min(self.conflict_index)
+            
+            # smoothly transit from current speed to zero before conflict point
+            n_points = earliest_conflict_index - self.ego_index
+            new_reference_states[self.ego_index: earliest_conflict_index, 2] = np.linspace(self.ego_vehicle.speed, 0, n_points)
+
+            # zero out ref speed after conflict point
+            new_reference_states[earliest_conflict_index:, 2] = 0
+
+            return new_reference_states 
