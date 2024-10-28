@@ -49,7 +49,10 @@ class PureMPC_Agent(Agent):
         if self.config.get("render", False):
             window_size = self.config.get("render_window_size", 5)
             self.fig, self.ax = plt.subplots(figsize=(window_size, window_size))
-
+            # Set the position of the figure window (x, y)
+            manager = plt.get_current_fig_manager()
+            manager.window.wm_geometry("+50+50")  
+        
         self.last_acc = 0
 
     def __str__(self) -> str:
@@ -91,35 +94,26 @@ class PureMPC_Agent(Agent):
                 for i, key in enumerate(PureMPC_Agent.weight_components)
             }
 
-        """ Update ref speed """
-        ref_trajectory = self.reference_states[:, :2]
-        distances = [np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) for point in ref_trajectory]
-        self.ego_index = np.argmin(distances)
-
-        # closest_points = []
-        # if self.is_collision_detected:
-        #     for point in collision_points:
-        #         distances = np.linalg.norm(ref - point, axis=1) 
-        #         closest_index = np.argmin(distances)
-        #         closest_points.append((ref[closest_index], closest_index))
-        #     self.collision_point_index = min(closest_points, key=lambda x: x[1])[1]
-        # else:
-        #     self.collision_point_index = None
+        # Get the index on the reference trajectory for ego vehicle
+        self.ego_index = np.argmin(
+            [np.linalg.norm(self.ego_vehicle.position - trajectory_point) 
+             for trajectory_point in self.reference_trajectory]
+        )
         
-        ref = self.update_reference_states(
-            speed_override=self.config["speed_override"])
+        # Generate new reference states, given the result of collision detection
+        ref = self.update_reference_states(speed_override=self.config["speed_override"])
         
         # distances = [np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) for point in ref]
         closest_index = self.ego_index
 
         # Define the cost function (objective to minimize)
-        cost = 0
+        total_cost = 0
         state_cost = 0
         control_cost = 0
-        final_state_cost = 0
-        input_diff_cost = 0
         distance_cost = 0
         collision_cost = 0
+        input_diff_cost = 0
+        final_state_cost = 0
         
         for k in range(N):
             ref_traj_index = min(closest_index + k, ref.shape[0] - 1)
@@ -179,7 +173,7 @@ class PureMPC_Agent(Agent):
             state_cost += (
                 4 * perp_deviation**2 + 
                 2 * para_deviation**2 +
-                10 * (x[3, k] - ref_v)**2 + 
+                1 * (x[3, k] - ref_v)**2 + 
                 0.1 * (x[2, k] - ref_heading)**2
             )
 
@@ -217,13 +211,13 @@ class PureMPC_Agent(Agent):
         final_state_cost += 100 * (
             (x[0, -1] - desired_final_state[0])**2 + 
             (x[1, -1] + desired_final_state[1])**2 + 
-            (x[3, -1] - desired_final_state[2])**2 + # ref speed
-            (x[2, -1] - desired_final_state[3])**2 # heading angle
+            (x[3, -1] - desired_final_state[2])**2 +    # ref speed
+            (x[2, -1] - desired_final_state[3])**2      # heading angle
         )
 
-        cost = (
-            state_cost * weights["weight_state"] + # old weight: 10
-            control_cost * weights["weight_control"] + # old weight: 1
+        total_cost = (
+            state_cost * weights["weight_state"] +      # old weight: 10
+            control_cost * weights["weight_control"] +  # old weight: 1
             distance_cost * weights["weight_distance"] +
             collision_cost * weights["weight_collision"] + 
             input_diff_cost * weights["weight_input_diff"] +
@@ -282,7 +276,7 @@ class PureMPC_Agent(Agent):
         # Create the optimization problem
         nlp = {
             'x': opt_variables, # decision variables
-            'f': cost,          # objective (total cost to minimize)
+            'f': total_cost,    # objective (total cost to minimize)
             'g': g,             # constraint
         }
         
@@ -313,7 +307,7 @@ class PureMPC_Agent(Agent):
         u_opt = opt_values[n_states * (N + 1):].reshape((N, n_controls))
         
         # Calculate and print the state cost and other cost components
-        state_cost_val, control_cost_val, final_state_cost_val, input_diff_cost_val, distance_cost_val, collision_cost_val = cost_fn(opt_values)
+        # state_cost_val, control_cost_val, final_state_cost_val, input_diff_cost_val, distance_cost_val, collision_cost_val = cost_fn(opt_values)
         
         # print("\n------")
         # print(f"State Cost: {state_cost_val}")
@@ -341,7 +335,12 @@ class PureMPC_Agent(Agent):
         self.ax.set_ylim([-x_range, x_range])  # y_range is set the same as x_range
         self.ax.invert_yaxis()
         self.ax.grid(True)
-        
+
+        # Set labels and title
+        self.ax.set_xlabel("X (meter)")
+        self.ax.set_ylabel("Y (meter)")
+        self.ax.set_title("Pure MPC Agent")
+
         # Plot reference trajectory in grey
         self.ax.scatter(
             x=self.reference_trajectory[:, 0], 
@@ -380,7 +379,7 @@ class PureMPC_Agent(Agent):
         # Pause briefly to create animation effect
         plt.pause(0.1)
 
-    def _check_collision(self) -> bool:
+    def _check_collision(self):
         """ Collision detection """
 
         # Create a LineString for ego reference trajectory
@@ -450,7 +449,6 @@ class PureMPC_Agent(Agent):
 
         self.is_collide = np.any(self.agent_collide)
         # return self.is_collide
-
 
     def calculate_ego_eta(self, distance, ego_index, acceleration: float = 1, max_speed=10):
         current_speed = self.ego_vehicle.speed
