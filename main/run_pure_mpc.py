@@ -7,7 +7,7 @@ from agents.pure_mpc import PureMPC_Agent
 from config.config import build_env_config, build_pure_mpc_agent_config
 
 
-@hydra.main(config_name="cfg", config_path="./config", version_base="1.3")
+@hydra.main(config_name="cfg", config_path="../config", version_base="1.3")
 def test_pure_mpc_agent(cfg):
     # config
     gym_env_config = build_env_config(cfg)

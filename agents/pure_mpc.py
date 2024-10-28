@@ -36,7 +36,7 @@ class PureMPC_Agent(Agent):
 
         # Load weights for each cost component from the configuration
         self.default_weights = {
-            key: self.config[f"weight_{key}"]
+            f"weight_{key}": self.config[f"weight_{key}"]
             for key in PureMPC_Agent.weight_components
         }
 
@@ -54,17 +54,19 @@ class PureMPC_Agent(Agent):
         self.is_collision_detected, collision_points = self.check_potential_collision()
         ref = self.global_reference_states[:, :2]
         
-        if weights_from_RL is not None:
+        if weights_from_RL is None:
+            # Use default weights from configuration file
             weights = self.default_weights
         else:
+            # Use dynamic weights from RL agent
             weights = {
-                key: weights_from_RL[i] 
+                f"weight_{key}": weights_from_RL[i] 
                 for i, key in enumerate(PureMPC_Agent.weight_components)
             }
             
-        weights = {
-            key: weight for key, weight in zip(PureMPC_Agent.weight_components, weights_from_RL)
-            }
+        # weights = {
+        #     key: weight for key, weight in zip(PureMPC_Agent.weight_components, weights_from_RL)
+        #     }
 
         closest_points = []
         if self.is_collision_detected:
