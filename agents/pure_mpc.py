@@ -4,6 +4,7 @@ import casadi as ca
 import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import Env
+from shapely import LineString
 
 from .base import Agent
 from .utils import MPC_Action, Vehicle
@@ -34,11 +35,16 @@ class PureMPC_Agent(Agent):
         """
         super().__init__(env, cfg)
 
+        if cfg["render"]:
+            self.fig, self.ax = plt.subplots(figsize=(4, 4))
+
         # Load weights for each cost component from the configuration
         self.default_weights = {
             f"weight_{key}": self.config[f"weight_{key}"]
             for key in PureMPC_Agent.weight_components
         }
+
+        self.last_acc = 0
 
     def __str__(self) -> str:
         return "Pure MPC agent [Receding Horizon Control], Solved by `CasADi` "
@@ -51,7 +57,7 @@ class PureMPC_Agent(Agent):
             ref_speed = None,
         ):
         self._parse_obs(obs)
-
+        self.check_collision()
         mpc_action = self._solve(weights_from_RL)
         return mpc_action.numpy() if return_numpy else mpc_action
       
@@ -190,43 +196,6 @@ class PureMPC_Agent(Agent):
                     1000 / (dist + 1e-6)**2,  # if True 
                     100 / (dist + 1e-6)**2    # if False
                 )
-
-            # Collision cost
-            collision_penalty_applied = 0   # flag: whether apply collision penalty on speed at this timestep
-
-            for other_vehicle in self.agent_vehicles:
-                # Get positions of the ego vehicle and the other vehicle
-                ego_position = x[:2, k]  # [x_ego, y_ego]
-                other_position = other_vehicle.position  # Assuming this is [x_other, y_other]
-                
-                # Calculate distance in x and y
-                delta_x = ego_position[0] - other_position[0]
-                delta_y = ego_position[1] - other_position[1]
-                
-                dist_to_other_vehicle_x = ca.fabs(delta_x)  # Distance in x direction
-                dist_to_other_vehicle_y = ca.fabs(delta_y)  # Distance in y direction
-                
-                # Get speeds of the ego vehicle and the other vehicle
-                ego_speed_x = x[3, k] * ca.cos(x[2, k])  # Assuming x[2, k] is the heading
-                ego_speed_y = x[3, k] * ca.sin(x[2, k])
-                
-                other_speed_x = other_vehicle.speed * ca.cos(other_vehicle.heading)  # Assuming you have heading
-                other_speed_y = other_vehicle.speed * ca.sin(other_vehicle.heading)
-                
-                # Calculate relative velocities in x and y
-                relative_velocity_x = ego_speed_x - other_speed_x
-                relative_velocity_y = ego_speed_y - other_speed_y
-                
-                # Calculate TTC for x and y directions using CasADi
-                ttc_x = ca.if_else(relative_velocity_x < 0, dist_to_other_vehicle_x / (relative_velocity_x + 1e-6), ca.inf)
-                ttc_y = ca.if_else(relative_velocity_y < 0, dist_to_other_vehicle_y / (relative_velocity_y + 1e-6), ca.inf)
-                
-                # Calculate collision cost based on TTC thresholds
-                collision_condition = ca.logic_or(ttc_x < self.ttc_threshold, ttc_y < self.ttc_threshold) # Use ca.or_ for logical OR
-                collision_penalty_applied = ca.logic_or(collision_condition, collision_penalty_applied) 
-
-            # Apply penalty if not already applied
-            collision_cost += ca.if_else(collision_penalty_applied, 3 * x[3, k]**2, 0)
             
             # Update other vehicles' location (constant speed)
             for other_vehicle in self.agent_vehicles:
@@ -346,18 +315,137 @@ class PureMPC_Agent(Agent):
         # print(f"Collision Cost: {collision_cost_val}")
 
         u_opt = sol['x'][n_states * (N + 1):].full().reshape((N, n_controls))
-        
+        self.last_acc = u_opt[0, 0]
+
         mpc_action = MPC_Action(acceleration=u_opt[0, 0], steer=u_opt[0, 1])
         return mpc_action
     
-    def plot(self, width: float = 100, height: float = 100):
-        plt.clf() 
-        plt.scatter(self.global_reference_states[:,0], self.global_reference_states[:,1], c='grey', s=1)
-        plt.scatter(self.ego_vehicle.position[0], self.ego_vehicle.position[1])
-        plt.axis('on')  
-        plt.xlim([-width, width])
-        plt.ylim([-height, height])
-
-        plt.gca().invert_yaxis() # flip y-axis, consistent with pygame window
+    def plot(self, width: float = 30, height: float = 30):
+        self.ax.clear()
         
-        plt.pause(0.1) # animate
+        # Set limits and invert y-axis once per plot call
+        self.ax.set_xlim([-width, width])
+        self.ax.set_ylim([-height, height])
+        self.ax.invert_yaxis()
+        self.ax.grid(True)
+        
+        # Scatter and plot on the existing ax
+        self.ax.scatter(self.global_reference_states[:, 0], self.global_reference_states[:, 1], c='grey', s=1)
+        self.ax.scatter(self.ego_vehicle.position[0], self.ego_vehicle.position[1], c='blue', s=5)
+
+        for agent, point in zip(self.agent_vehicles, self.conflict_points):
+            # self.ax.scatter(agent.position[0], agent.position[1], c='red', s=5)
+            if point is not None:
+                xs, ys = [agent.position[0], point[0]], [agent.position[1], point[1]]
+                self.ax.plot(xs, ys, 'x-')
+
+        # for start_point, end_point in self.points:
+        #     xs = (start_point[0], end_point[0])
+        #     ys = (start_point[1], end_point[1])
+        #     plt.plot(xs, ys, "-")
+        #     plt.scatter(xs[0], ys[0], marker='o')
+        #     plt.scatter(xs[-1], ys[-1], marker='s')
+
+        # Pause briefly to create animation effect
+        plt.pause(0.1) 
+
+
+    def check_collision(self) -> bool:
+        """ Check the potential collison between ego vehicle and agent vehicles in future """
+
+        segment_length = 50  
+
+        self.points = list()
+        agent_props = list()
+        for agent in self.agent_vehicles:
+            agent_location = agent.position
+            agent_speed = agent.speed
+            agent_heading_angle = agent.heading
+
+            # heading_rad = np.radians(agent_heading_angle)
+            delta_x = segment_length * np.cos(agent_heading_angle)
+            delta_y = segment_length * np.sin(agent_heading_angle)
+
+            start_point = agent_location
+            end_point = agent_location + np.array([delta_x, delta_y])
+            agent_segment = LineString([start_point, end_point])
+
+            agent_props.append((agent_location, agent_speed, agent_heading_angle, agent_segment))
+            self.points.append((start_point, end_point))
+
+        ego_path_lineString = LineString(self.reference_states[:, :2])
+        
+        
+        self.conflict_points = list()
+
+        for agent_prop in agent_props:
+            agent_lineString = agent_prop[3]
+            intersection = ego_path_lineString.intersection(agent_lineString)
+
+            if not intersection.is_empty:
+                if intersection.geom_type == 'Point':
+                    # print("Point:", type(intersection))
+                    self.conflict_points.append((intersection.x, intersection.y))
+            elif intersection.geom_type == 'MultiPoint':
+                print("MultiPoint:", intersection)
+                points = []
+                for point in intersection.geoms:
+                    points.append(point.x, point.y)
+                self.conflict_points.append(tuple(points))
+
+            else:
+                self.conflict_points.append(None)
+
+        agent_distances = list()
+        for agent_id, conflict_point in enumerate(self.conflict_points):
+            if conflict_point is not None:
+                agent_distances.append(
+                    np.linalg.norm(
+                        agent_props[agent_id][0] - np.array(conflict_point[:2])
+                    )
+                )
+            else:
+                agent_distances.append(None)
+
+        agent_ETAs = list()
+        for agent_id, distance in enumerate(agent_distances):
+            if distance is not None:
+                agent_ETAs.append(distance/agent_props[agent_id][1])
+            else:
+                agent_ETAs.append(-1*100)
+
+        distances = [np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) for point in self.reference_states]
+        self.ego_index = np.argmin(distances)
+
+        ego_ETAs = list()
+        coords = list(ego_path_lineString.coords)
+        for agent_id, conflict_point in enumerate(self.conflict_points):
+            if conflict_point is not None:
+                distances = [np.linalg.norm(conflict_point[:2] - np.array(point[:2])) for point in self.reference_states]
+                agent_index = np.argmin(distances)
+                distance = LineString(self.reference_states[self.ego_index: agent_index,:2]).length
+                ego_ETAs.append(self.calculate_ego_eta(
+                    distance, acceleration=self.last_acc,
+                ))
+
+            else:
+                ego_ETAs.append(100)
+
+        delta_time = np.nan_to_num(ego_ETAs, nan=np.inf) - np.nan_to_num(agent_ETAs, nan=-1*np.inf)
+        return np.any(delta_time < 1)
+
+
+    def calculate_ego_eta(self, distance, acceleration: float = 1, max_speed=10):
+        current_speed = self.ego_vehicle.speed
+        
+        if current_speed >= max_speed:
+            # already reach speed limit
+            return distance / max_speed
+        else:
+            # need to accelerate first
+            distance_when_vmax = (max_speed**2 - current_speed**2) / acceleration / 2
+            if distance > distance_when_vmax:
+                return (max_speed - current_speed) / acceleration + (distance - distance_when_vmax) / max_speed
+            else:
+                v_max = np.sqrt(2*acceleration*distance + current_speed**2)
+                return (v_max - current_speed) / acceleration

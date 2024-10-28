@@ -175,7 +175,7 @@ class Agent:
         # override the speed given speed_override
         if isinstance(speed_override, int):
             new_reference_states[ego_index:conflict_index+1, 2] = speed_override
-        elif isinstance(speed_override, np.ndarray):
+        # elif isinstance(speed_override, n 
 
         return new_reference_states
 
