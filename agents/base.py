@@ -150,17 +150,33 @@ class Agent:
         
         return np.array(trajectory)
 
-    def update_reference_states(self, index: int = None) -> np.ndarray:
+    def update_reference_states(
+            self, 
+            ego_index: int=0,
+            conflict_index: int = None, 
+            speed_override = None) -> np.ndarray:
         """ 
         Modify the reference speed, 
         Set ref speed as zero if collision are detected 
         """
-        if index is None:
+        # if index==None, return the original reference states
+        if conflict_index is None:
             return np.copy(self.reference_states)
         
-        assert 0 <= index < self.reference_states.shape[0], "Index is out of bounds"
+        if conflict_index <= ego_index:
+            return np.copy(self.reference_states)
+
+        # check if the conflict_index is valid
+        assert 0 <= conflict_index < self.reference_states.shape[0], "Index is out of bounds"
+        
+        # deepcopy a new reference state
         new_reference_states = np.copy(self.reference_states)
-        new_reference_states[:index+1, 2] = 0
+
+        # override the speed given speed_override
+        if isinstance(speed_override, int):
+            new_reference_states[ego_index:conflict_index+1, 2] = speed_override
+        elif isinstance(speed_override, np.ndarray):
+
         return new_reference_states
 
     def check_potential_collision(self) -> Tuple[bool, List]:

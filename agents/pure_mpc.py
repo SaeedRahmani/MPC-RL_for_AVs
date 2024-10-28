@@ -51,37 +51,11 @@ class PureMPC_Agent(Agent):
             ref_speed = None,
         ):
         self._parse_obs(obs)
-        self.is_collision_detected, collision_points = self.check_potential_collision()
-        ref = self.global_reference_states[:, :2]
-        
-        if weights_from_RL is None:
-            # Use default weights from configuration file
-            weights = self.default_weights
-        else:
-            # Use dynamic weights from RL agent
-            weights = {
-                f"weight_{key}": weights_from_RL[i] 
-                for i, key in enumerate(PureMPC_Agent.weight_components)
-            }
-            
-        # weights = {
-        #     key: weight for key, weight in zip(PureMPC_Agent.weight_components, weights_from_RL)
-        #     }
 
-        closest_points = []
-        if self.is_collision_detected:
-            for point in collision_points:
-                distances = np.linalg.norm(ref - point, axis=1) 
-                closest_index = np.argmin(distances)
-                closest_points.append((ref[closest_index], closest_index))
-            self.collision_point_index = min(closest_points, key=lambda x: x[1])[1]
-        else:
-            self.collision_point_index = None
-            
-        mpc_action = self._solve(weights)
+        mpc_action = self._solve(weights_from_RL)
         return mpc_action.numpy() if return_numpy else mpc_action
       
-    def _solve(self, weights: dict[str, float]) -> MPC_Action:
+    def _solve(self, weights_from_RL: dict[str, float]) -> MPC_Action:
         
         # MPC parameters
         N = self.horizon
@@ -93,10 +67,42 @@ class PureMPC_Agent(Agent):
         # Create symbolic variables for state and control trajectories
         x = ca.SX.sym('x', n_states, N + 1)  # State trajectory over N + 1 time steps
         u = ca.SX.sym('u', n_controls, N)    # Control inputs over N time steps
-        
-        ref = self.update_reference_states(index=self.collision_point_index)
+
+        """ Update weights """
+        if weights_from_RL is None:
+            # Use default weights from configuration file
+            weights = self.default_weights
+        else:
+            # Use dynamic weights from RL agent
+            weights = {
+                f"weight_{key}": weights_from_RL[i] 
+                for i, key in enumerate(PureMPC_Agent.weight_components)
+            }
+
+        """ Update ref speed """
+        self.is_collision_detected, collision_points = self.check_potential_collision()
+        ref = self.global_reference_states[:, :2]
+
         distances = [np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) for point in ref]
-        closest_index = np.argmin(distances)
+        self.ego_index = np.argmin(distances)
+
+        closest_points = []
+        if self.is_collision_detected:
+            for point in collision_points:
+                distances = np.linalg.norm(ref - point, axis=1) 
+                closest_index = np.argmin(distances)
+                closest_points.append((ref[closest_index], closest_index))
+            self.collision_point_index = min(closest_points, key=lambda x: x[1])[1]
+        else:
+            self.collision_point_index = None
+        
+        ref = self.update_reference_states(
+            ego_index=self.ego_index,
+            conflict_index=self.collision_point_index,
+            speed_override=10)
+        
+        # distances = [np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) for point in ref]
+        closest_index = self.ego_index
 
         # Define the cost function (objective to minimize)
         cost = 0
