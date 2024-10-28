@@ -430,32 +430,37 @@ class PureMPC_Agent(Agent):
     def calculate_ego_eta(self, distance, ego_index, acceleration: float = 1, max_speed=10):
         current_speed = self.ego_vehicle.speed
         
-        # direction of the ego vehicle
+        # Ego vehicle's velocity direction
         velocity_vector = np.array([
             current_speed * np.cos(self.ego_vehicle.heading),
             current_speed * np.sin(self.ego_vehicle.heading),
         ])
         
-        # direction of ref traj
+        # Reference trajectory direction at the target point
         trajectory_vector = np.array([
-            max_speed * np.cos(self.reference_states[ego_index,3]),
-            max_speed * np.sin(self.reference_states[ego_index,3]),
+            max_speed * np.cos(self.reference_states[ego_index, 3]),
+            max_speed * np.sin(self.reference_states[ego_index, 3]),
         ])
 
-        # determine the speed direction
+        # Determine if the vehicle is moving along the trajectory direction
         sign = 1 if np.dot(velocity_vector, trajectory_vector) > 0 else -1
-        current_speed = sign * current_speed
+        adjusted_speed = sign * current_speed
 
-        if current_speed >= max_speed:
-            # already reach speed limit
+        # Check if speed is already at or above max speed
+        if adjusted_speed >= max_speed:
             return distance / max_speed
-        elif max_speed > current_speed > 0:
-            # need to accelerate first
-            distance_when_vmax = (max_speed**2 - current_speed**2) / acceleration / 2
-            if distance > distance_when_vmax:
-                return (max_speed - current_speed) / acceleration + (distance - distance_when_vmax) / max_speed
-            else:
-                v_max = np.sqrt(2*acceleration*distance + current_speed**2)
-                return (v_max - current_speed) / acceleration
+        
+        # Calculate distance needed to reach max speed with the given acceleration
+        if acceleration > 0:
+            distance_to_reach_vmax = (max_speed**2 - adjusted_speed**2) / (2 * acceleration)
         else:
-            return np.inf
+            return np.inf  # Avoid division by zero if acceleration is zero or negative
+
+        if distance > distance_to_reach_vmax:
+            # Time to accelerate to max speed and then travel the remaining distance
+            time_to_accelerate = (max_speed - adjusted_speed) / acceleration
+            return time_to_accelerate + (distance - distance_to_reach_vmax) / max_speed
+        else:
+            # Distance is within reach before hitting max speed
+            achievable_speed = np.sqrt(2 * acceleration * distance + adjusted_speed**2)
+            return achievable_speed

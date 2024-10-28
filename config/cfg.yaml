@@ -1,15 +1,15 @@
 env:
-  vehicles_count: 10
-  initial_vehicle_count: 5
+  vehicles_count: 20
+  initial_vehicle_count: 10
   absolute: True
   normalize: False
   order: sorted
-  spawn_probability: 0.003
+  spawn_probability: 0.3
 
 pure_mpc:
   horizon: 16
   render: true
-  ttc_threshold: 3
+  ttc_threshold: 2
   speed_override: 0
   weight_state: 10
   weight_control: 1
