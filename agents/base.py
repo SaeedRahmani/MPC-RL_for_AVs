@@ -1,6 +1,7 @@
 """ Base class for all the MPC-related agents """
 
 from typing import Union, List, Tuple
+import copy
 
 import gymnasium as gym
 import numpy as np
@@ -97,7 +98,8 @@ class Agent:
             index=0,
             position=obs[0, 1:3],
             vectorized_speed=obs[0, 3:5],
-            heading=self.normalize_angle(obs[0, 5])
+            heading=self.normalize_angle(obs[0, 5]),
+            sinh=obs[0, 6], cosh=obs[0, 7],
         )
         
         # Agent vehicles
@@ -108,10 +110,12 @@ class Agent:
                     index=i+1,
                     position=obs[i+1, 1:3],
                     vectorized_speed=obs[i+1, 3:5],
-                    heading=obs[i+1, 5]
+                    heading=obs[i+1, 5],
+                    sinh=obs[0, 6], cosh=obs[0, 7],
                 ))
             assert len(self.agent_vehicles) == self.observed_vehicles_count
-            
+        self.agent_vehicles_mpc = copy.deepcopy(self.agent_vehicles)       
+    
     @property
     def reference_states(self):
         trajectory = []
@@ -152,32 +156,23 @@ class Agent:
 
     def update_reference_states(
             self, 
-            ego_index: int=0,
-            conflict_index: int = None, 
             speed_override = None) -> np.ndarray:
         """ 
         Modify the reference speed, 
         Set ref speed as zero if collision are detected 
         """
-        # if index==None, return the original reference states
-        if conflict_index is None:
+        if not self.is_collide:
+            # reference speed as 10 
             return np.copy(self.reference_states)
-        
-        if conflict_index <= ego_index:
-            return np.copy(self.reference_states)
+        else:
+            # deepcopy a new reference state
+            new_reference_states = np.copy(self.reference_states)
 
-        # check if the conflict_index is valid
-        assert 0 <= conflict_index < self.reference_states.shape[0], "Index is out of bounds"
-        
-        # deepcopy a new reference state
-        new_reference_states = np.copy(self.reference_states)
+            # override the speed, given speed_override
+            if isinstance(speed_override, int):
+                new_reference_states[:, 2] = speed_override
 
-        # override the speed given speed_override
-        if isinstance(speed_override, int):
-            new_reference_states[ego_index:conflict_index+1, 2] = speed_override
-        # elif isinstance(speed_override, n 
-
-        return new_reference_states
+            return new_reference_states
 
     def check_potential_collision(self) -> Tuple[bool, List]:
         is_collision_detected = False

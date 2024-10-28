@@ -23,7 +23,9 @@ class Vehicle:
         index,
         position,
         vectorized_speed,
-        heading
+        heading,
+        sinh: float,
+        cosh: float,
     ):
         self.index = index
         self.is_ego = True if index == 0 else False
@@ -32,7 +34,8 @@ class Vehicle:
         self.vectorized_speed = vectorized_speed
         self.heading = heading
         self.speed = np.linalg.norm(self.vectorized_speed)
-     
+        self.sinh = sinh
+        self.cosh = cosh
         
 class State:
     def __init__(
