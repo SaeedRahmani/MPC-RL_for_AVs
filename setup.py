@@ -15,6 +15,7 @@ setup(
         'casadi==3.6.6',
         'hydra-core==1.3.2',
         'stable-baselines3==2.3.1'
+        'shapely==2.0.6'
     ],
     classifiers=[
         'Programming Language :: Python :: 3',  
