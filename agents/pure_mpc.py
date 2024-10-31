@@ -451,6 +451,7 @@ class PureMPC_Agent(Agent):
         self.is_collide = np.any(self.agent_collide)
         # return self.is_collide
 
+    ### Saeed: This function seems incorrect and returns inconsistent data
     def calculate_ego_eta(self, distance, ego_index, acceleration: float = 1, max_speed=10):
         current_speed = self.ego_vehicle.speed
         
@@ -488,55 +489,6 @@ class PureMPC_Agent(Agent):
             # Distance is within reach before hitting max speed
             achievable_speed = np.sqrt(2 * acceleration * distance + adjusted_speed**2)
             return achievable_speed
-    
-    ### Previous ego_eta function is wront. it sometimes returns speed rather than time. 
-    ### This new function might be correct but needs revision
-    # def calculate_ego_eta(self, distance, ego_index, acceleration: float = 1, max_speed=10):
-    #     current_speed = self.ego_vehicle.speed
-
-    #     # Ego vehicle's velocity direction
-    #     velocity_vector = np.array([
-    #         current_speed * np.cos(self.ego_vehicle.heading),
-    #         current_speed * np.sin(self.ego_vehicle.heading),
-    #     ])
-
-    #     # Reference trajectory direction at the target point
-    #     trajectory_vector = np.array([
-    #         max_speed * np.cos(self.reference_states[ego_index, 3]),
-    #         max_speed * np.sin(self.reference_states[ego_index, 3]),
-    #     ])
-
-    #     # Determine if the vehicle is moving along the trajectory direction
-    #     sign = 1 if np.dot(velocity_vector, trajectory_vector) > 0 else -1
-    #     adjusted_speed = sign * current_speed
-
-    #     if acceleration == 0:
-    #         if adjusted_speed == 0:
-    #             return np.inf  # Can't reach the point without moving
-    #         else:
-    #             return distance / adjusted_speed
-
-    #     # Solve quadratic equation 0.5 * a * t^2 + v0 * t - distance = 0
-    #     a = 0.5 * acceleration
-    #     b = adjusted_speed
-    #     c = -distance
-
-    #     discriminant = b**2 - 4 * a * c
-
-    #     if discriminant < 0:
-    #         return np.inf  # Can't reach the distance
-
-    #     sqrt_discriminant = np.sqrt(discriminant)
-    #     t1 = (-b + sqrt_discriminant) / (2 * a)
-    #     t2 = (-b - sqrt_discriminant) / (2 * a)
-
-    #     # Choose the positive time
-    #     t = max(t1, t2)
-
-    #     if t < 0:
-    #         return np.inf
-
-    #     return t
     
     def update_reference_states(
             self, 
