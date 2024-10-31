@@ -3,7 +3,7 @@ import highway_env
 import hydra
 import numpy as np
 
-from agents.pure_mpc import PureMPC_Agent
+from agents.pure_mpc_saeed import PureMPC_Agent
 from config.config import build_env_config, build_pure_mpc_agent_config
 
 np.set_printoptions(suppress=True)
@@ -21,7 +21,7 @@ def test_pure_mpc_agent(cfg):
     mpc_agent = PureMPC_Agent(env, pure_mpc_agent_config)
 
     observation, _ = env.reset()
-    # print(observation)
+    
     # print(env.unwrapped.road.network.graph['o0']['ir0'][0].start)
 
     # for _, roads in env.unwrapped.road.network.graph.items():
@@ -34,8 +34,9 @@ def test_pure_mpc_agent(cfg):
         mpc_agent.plot()
         # print(np.array([action.acceleration, action.steer]))
         observation, reward, done, truncated, info = env.step([action.acceleration/5, action.steer/(np.pi/3)])
-        # print(observation[0,1:3])
-        
+        # observation, reward, done, truncated, info = env.step([action.acceleration, action.steer])
+        # print('speed', observation[0,3])
+        print(observation[0][3:5])
         # rendering animation
         env.render()
         
