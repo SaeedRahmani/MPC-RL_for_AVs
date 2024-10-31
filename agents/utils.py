@@ -36,6 +36,8 @@ class Vehicle:
         self.speed = np.linalg.norm(self.vectorized_speed)
         self.sinh = sinh
         self.cosh = cosh
+        self.max_acceleration = 3.5
+        self.max_deceleration = -10
         
 class State:
     def __init__(
