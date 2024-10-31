@@ -134,7 +134,7 @@ class PureMPC_Agent(Agent):
             if self.is_collide:
                 print('collision', self.is_collide)
                 print('ref v', ref_v)
-                speed_weight = 200
+                speed_weight = 100
                 
             # State cost
             state_cost += (
@@ -485,7 +485,7 @@ class PureMPC_Agent(Agent):
             return np.copy(self.reference_states)
         else:
             new_reference_states = np.copy(self.reference_states)
-            earliest_conflict_index = np.min(self.conflict_index)
+            earliest_conflict_index = np.min(self.conflict_index) - 5 # Buffer
             n_points = earliest_conflict_index - self.ego_index
             distance_to_conflict = LineString(self.reference_trajectory[self.ego_index: earliest_conflict_index+1, :2]).length
             distance_to_conflict = distance_to_conflict - 2 # buffer
