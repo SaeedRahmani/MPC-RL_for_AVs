@@ -168,13 +168,20 @@ class PureMPC_Agent(Agent):
             ref_heading = ref[ref_traj_index,3]
             perp_deviation = dx * ca.sin(ref_heading) - dy * ca.cos(ref_heading)
             para_deviation = dx * ca.cos(ref_heading) + dy * ca.sin(ref_heading)
-
+            
+            speed_weight = 1
+            if self.is_collide:
+                print('collision', self.is_collide)
+                print('ref v', ref_v)
+                speed_weight = 20
+                
             # State cost
             state_cost += (
                 4 * perp_deviation**2 + 
                 2 * para_deviation**2 +
-                1 * (x[3, k] - ref_v)**2 + 
-                0.1 * (x[2, k] - ref_heading)**2
+                speed_weight * (x[3, k] - ref_v)**2 + 
+                # speed_weight * x[3, k] +
+                0.5 * (x[2, k] - ref_heading)**2
             )
 
             # Control cost
@@ -452,7 +459,6 @@ class PureMPC_Agent(Agent):
                 self.agent_collide.append(False)
         
         self.is_collide = np.any(self.agent_collide)
-        print('collision', self.is_collide)
         # return self.is_collide
 
     # def calculate_ego_eta(self, distance, ego_index, acceleration: float = 1, max_speed=10):
@@ -550,12 +556,12 @@ class PureMPC_Agent(Agent):
             earliest_conflict_index = np.min(self.conflict_index)
             n_points = earliest_conflict_index - self.ego_index
             distance_to_conflict = LineString(self.reference_trajectory[self.ego_index: earliest_conflict_index+1, :2]).length
-            
+            distance_to_conflict = distance_to_conflict - 2 # buffer
             # Calculate required deceleration
             current_speed = self.ego_vehicle.speed
-            max_deceleration = self.ego_vehicle.max_deceleration
-            required_deceleration = (current_speed ** 2) / (2 * distance_to_conflict)
-            required_deceleration = min(required_deceleration, max_deceleration)
+            max_deceleration = - self.ego_vehicle.max_deceleration  # Should be positive
+            required_deceleration = - (current_speed ** 2) / (2 * distance_to_conflict)
+            required_deceleration = max(required_deceleration, -max_deceleration)
             
             # Calculate speeds at each point
             for i in range(self.ego_index, earliest_conflict_index):
@@ -565,7 +571,7 @@ class PureMPC_Agent(Agent):
                 else:
                     distance = 0  # or handle this case as appropriate
 
-                speed = np.sqrt(max(current_speed ** 2 - 2 * required_deceleration * distance, 0))
+                speed = np.sqrt(max(current_speed ** 2 + 2 * required_deceleration * distance, 0))
                 new_reference_states[i, 2] = speed
             
             # Zero out ref speed after conflict point
