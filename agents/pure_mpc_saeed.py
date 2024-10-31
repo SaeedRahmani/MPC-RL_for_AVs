@@ -169,18 +169,18 @@ class PureMPC_Agent(Agent):
             perp_deviation = dx * ca.sin(ref_heading) - dy * ca.cos(ref_heading)
             para_deviation = dx * ca.cos(ref_heading) + dy * ca.sin(ref_heading)
             
-            speed_weight = 1
+            speed_weight = 200
             if self.is_collide:
-                print('collision', self.is_collide)
-                print('ref v', ref_v)
-                speed_weight = 20
+                # print('collision', self.is_collide)
+                # print('ref v', ref_v)
+                speed_weight = 200
                 
             # State cost
             state_cost += (
                 4 * perp_deviation**2 + 
                 2 * para_deviation**2 +
                 speed_weight * (x[3, k] - ref_v)**2 + 
-                # speed_weight * x[3, k] +
+                # speed_weight * x[3, k]**2 +
                 0.5 * (x[2, k] - ref_heading)**2
             )
 
@@ -253,12 +253,25 @@ class PureMPC_Agent(Agent):
         
         # Constraints
         g = []  # Constraints vector
+        
+        state = np.array([
+            self.ego_vehicle.position[0], 
+            self.ego_vehicle.position[1], 
+            self.ego_vehicle.heading, 
+            self.ego_vehicle.speed
+        ])
 
+        x0_states = np.tile(state, (N + 1, 1)).flatten()  # Shape: (4 * (N + 1),)
+
+
+        # Initial condition constraint
+        g.append(x[:, 0] - state)
+    
         # State-update constraints for the entire horizon
         for k in range(N):
             x_next = x[:, k] + vehicle_model(x[:, k], u[:, k]) * self.dt
             g.append(x[:, k + 1] - x_next)  # Ensure next state matches dynamics
-
+        
         # Flatten the list of constraints
         g = ca.vertcat(*g)
 
@@ -281,9 +294,12 @@ class PureMPC_Agent(Agent):
             # ubx += [ca.inf, ca.inf, ca.pi, 30]    # Upper bounds [x, y, theta, v]
         # Bounds on control inputs (acceleration and steering angle)
         for _ in range(N):
-            lbx += [-20, -ca.pi / 3]  # Lower bounds [acceleration, steer_angle]
+            lbx += [-5, -ca.pi / 3]  # Lower bounds [acceleration, steer_angle]
             ubx += [5, ca.pi / 3]    # Upper bounds [acceleration, steer_angle]
 
+        print('lbx', lbx)
+        print('ubx', ubx)
+        
         # Create the optimization problem
         nlp = {
             'x': opt_variables, # decision variables
@@ -300,8 +316,8 @@ class PureMPC_Agent(Agent):
         solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
 
         # Initial guess for the optimization
-        state = np.array([self.ego_vehicle.position[0], self.ego_vehicle.position[1], self.ego_vehicle.heading, self.ego_vehicle.speed])
-        x0_states = np.tile(state, (N + 1, 1)).flatten()  # Shape: (4 * (N + 1),)
+        # state = np.array([self.ego_vehicle.position[0], self.ego_vehicle.position[1], self.ego_vehicle.heading, self.ego_vehicle.speed])
+        # x0_states = np.tile(state, (N + 1, 1)).flatten()  # Shape: (4 * (N + 1),)
         u0_controls = np.zeros(n_controls * N)           # Shape: (2 * N,)
         # Combine the initial guesses for states and controls
         x0 = np.concatenate((x0_states, u0_controls))    # Shape: (6 * N + 4,)
@@ -314,8 +330,19 @@ class PureMPC_Agent(Agent):
             
         """ Print costs """
         # Extract the solution values
+        # opt_values = sol['x'].full()
+        # print("Optimal states and control:", opt_values)
+        # u_opt = opt_values[n_states * (N + 1):].reshape((N, n_controls))
+            
+         # Parameter vector (initial state and reference states)
+
+        # x_init = np.zeros((n_states * (N + 1) + n_controls * N, 1))
+        # # Solve the optimization problem
         opt_values = sol['x'].full()
-        u_opt = opt_values[n_states * (N + 1):].reshape((N, n_controls))
+        print('optinal values', opt_values)
+        u_opt = sol['x'][-N * n_controls:].full().reshape(N, n_controls)
+        print('solver output', u_opt)
+        print('first acc', u_opt[0, 0])
         
         # Calculate and print the state cost and other cost components
         # state_cost_val, control_cost_val, final_state_cost_val, input_diff_cost_val, distance_cost_val, collision_cost_val = cost_fn(opt_values)
@@ -328,7 +355,7 @@ class PureMPC_Agent(Agent):
         # print(f"Distance Cost: {distance_cost_val}")
         # print(f"Collision Cost: {collision_cost_val}")
 
-        u_opt = sol['x'][n_states * (N + 1):].full().reshape((N, n_controls))
+        # u_opt = sol['x'][n_states * (N + 1):].full().reshape((N, n_controls))
         self.last_acc = u_opt[0, 0]
 
         mpc_action = MPC_Action(acceleration=u_opt[0, 0], steer=u_opt[0, 1])
@@ -503,7 +530,9 @@ class PureMPC_Agent(Agent):
     ### This new function might be correct but needs revision
     def calculate_ego_eta(self, distance, ego_index, acceleration: float = 1, max_speed=10):
         current_speed = self.ego_vehicle.speed
-
+        acceleration = self.last_acc
+        print('current speed', current_speed)
+        print('current acceleration', acceleration)
         # Ego vehicle's velocity direction
         velocity_vector = np.array([
             current_speed * np.cos(self.ego_vehicle.heading),
