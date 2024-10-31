@@ -72,6 +72,7 @@ class PureMPC_Agent(Agent):
       
     def _solve(self, weights_from_RL: dict[str, float]=None) -> MPC_Action:
         
+        manual_collision_avoidance = True
         # MPC parameters
         N = self.horizon
         
@@ -118,47 +119,7 @@ class PureMPC_Agent(Agent):
         for k in range(N):
             ref_traj_index = min(closest_index + k, ref.shape[0] - 1)
 
-            ref_v = ref[ref_traj_index,2]
-            # print(ref_v)
-            # ref_heading = ref[ref_traj_index,3]
-            
-            """ CVXPY version """
-            
-            # d_perp = x[0, k] - ref[ref_traj_index,0]
-            # d_para = x[1, k] - ref[ref_traj_index,1]
-            
-            # c_perp, s_perp = ca.cos(ref_heading + ca.pi/2), ca.sin(ref_heading + ca.pi/2)
-            # matrix_perp = ca.SX([
-            #     [c_perp**2, c_perp*s_perp],
-            #     [c_perp*s_perp, s_perp**2]])
-            
-            # c_para, s_para = ca.cos(ref_heading), ca.sin(ref_heading)
-            # matrix_para = ca.SX([
-            #     [c_para**2, c_para*s_para],
-            #     [c_para*s_para, s_para**2]])
-            
-            # total_d = ca.vertcat(d_perp, d_para)
-
-            # # print(f"ref speed:{ref_v}, ref x: {ref[ref_traj_index,0]}, ref y: {ref[ref_traj_index,1]}")
-            # perp_deviation = ca.norm_2(ca.mtimes(matrix_perp, total_d))
-            # para_deviation = ca.norm_2(ca.mtimes(matrix_para, total_d))
-
-            """ ChatGPT version"""
-
-            # delta_x =  x[0, k] - ref[ref_traj_index, 0]
-            # delta_y =  x[1, k] - ref[ref_traj_index, 1]
-
-            # # Adjust for inverted y-axis if necessary
-            # # delta_y *= -1  # If your coordinate system has y increasing downwards
-
-            # ref_heading = ref[ref_traj_index, 3]
-            # # print(ref_heading)
-
-            # # Perpendicular Deviation (distance to the path)
-            # perp_deviation = -ca.sin(ref_heading) * delta_x + ca.cos(ref_heading) * delta_y
-
-            # # Parallel Deviation (progress along the path)
-            # para_deviation = ca.cos(ref_heading) * delta_x + ca.sin(ref_heading) * delta_y
+            ref_v = ref[ref_traj_index,2]       
 
             """ Gozde version"""
             dx = x[0, k] - ref[ref_traj_index,0]
@@ -169,10 +130,10 @@ class PureMPC_Agent(Agent):
             perp_deviation = dx * ca.sin(ref_heading) - dy * ca.cos(ref_heading)
             para_deviation = dx * ca.cos(ref_heading) + dy * ca.sin(ref_heading)
             
-            speed_weight = 200
+            speed_weight = 1
             if self.is_collide:
-                # print('collision', self.is_collide)
-                # print('ref v', ref_v)
+                print('collision', self.is_collide)
+                print('ref v', ref_v)
                 speed_weight = 200
                 
             # State cost
@@ -193,23 +154,25 @@ class PureMPC_Agent(Agent):
 
             ### This cost must be zero if we want to mannually change the ref traj in case of accidents
             # Distance cost
-            for other_vehicle in self.agent_vehicles_mpc:
-                dist = ca.norm_2(x[:2, k] - other_vehicle.position)
-                # in casadi, use ca.if_else to branch
-                distance_cost += ca.if_else(
-                    dist < 1.0, # if-statement
-                    1000 / (dist + 1e-6)**2,  # if True 
-                    100 / (dist + 1e-6)**2    # if False
+            
+            if not manual_collision_avoidance:
+                for other_vehicle in self.agent_vehicles_mpc:
+                    dist = ca.norm_2(x[:2, k] - other_vehicle.position)
+                    # in casadi, use ca.if_else to branch
+                    distance_cost += ca.if_else(
+                        dist < 1.0, # if-statement
+                        1000 / (dist + 1e-6)**2,  # if True 
+                        100 / (dist + 1e-6)**2    # if False
+                    )
+            
+                collision_cost += ca.if_else(
+                    self.is_collide,
+                    3000 * x[3, k] ** 2,
+                    0
                 )
-            
-            collision_cost += ca.if_else(
-                self.is_collide,
-                3000 * x[3, k] ** 2,
-                0
-            )
-            
-            distance_cost = 0
-            collision_cost = 0
+            else:    
+                distance_cost = 0
+                collision_cost = 0
 
             # Update other vehicles' location (constant speed)
             for other_vehicle in self.agent_vehicles_mpc:
@@ -222,7 +185,7 @@ class PureMPC_Agent(Agent):
         final_state_cost += 100 * (
             (x[0, -1] - desired_final_state[0])**2 + 
             (x[1, -1] + desired_final_state[1])**2 + 
-            (x[3, -1] - desired_final_state[2])**2 +    # ref speed
+            20 * (x[3, -1] - desired_final_state[2])**2 +    # ref speed
             (x[2, -1] - desired_final_state[3])**2      # heading angle
         )
 
@@ -262,7 +225,12 @@ class PureMPC_Agent(Agent):
         ])
 
         x0_states = np.tile(state, (N + 1, 1)).flatten()  # Shape: (4 * (N + 1),)
-
+        # Initial guess for the optimization
+        # state = np.array([self.ego_vehicle.position[0], self.ego_vehicle.position[1], self.ego_vehicle.heading, self.ego_vehicle.speed])
+        # x0_states = np.tile(state, (N + 1, 1)).flatten()  # Shape: (4 * (N + 1),)
+        u0_controls = np.zeros(n_controls * N)           # Shape: (2 * N,)
+        # Combine the initial guesses for states and controls
+        x0 = np.concatenate((x0_states, u0_controls))    # Shape: (6 * N + 4,)
 
         # Initial condition constraint
         g.append(x[:, 0] - state)
@@ -314,13 +282,6 @@ class PureMPC_Agent(Agent):
             'ipopt.tol':1e-6,
         }
         solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
-
-        # Initial guess for the optimization
-        # state = np.array([self.ego_vehicle.position[0], self.ego_vehicle.position[1], self.ego_vehicle.heading, self.ego_vehicle.speed])
-        # x0_states = np.tile(state, (N + 1, 1)).flatten()  # Shape: (4 * (N + 1),)
-        u0_controls = np.zeros(n_controls * N)           # Shape: (2 * N,)
-        # Combine the initial guesses for states and controls
-        x0 = np.concatenate((x0_states, u0_controls))    # Shape: (6 * N + 4,)
         
         # Solve the optimization problem
         sol = solver(x0=x0, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
@@ -328,34 +289,14 @@ class PureMPC_Agent(Agent):
         if not solver.stats()['success']:
             print("NOTICE: Not found solution")
             
-        """ Print costs """
-        # Extract the solution values
-        # opt_values = sol['x'].full()
-        # print("Optimal states and control:", opt_values)
-        # u_opt = opt_values[n_states * (N + 1):].reshape((N, n_controls))
-            
-         # Parameter vector (initial state and reference states)
-
-        # x_init = np.zeros((n_states * (N + 1) + n_controls * N, 1))
+        
         # # Solve the optimization problem
         opt_values = sol['x'].full()
-        print('optinal values', opt_values)
+        print('optimal values', opt_values)
         u_opt = sol['x'][-N * n_controls:].full().reshape(N, n_controls)
-        print('solver output', u_opt)
+        print('optimal input values', u_opt)
         print('first acc', u_opt[0, 0])
-        
-        # Calculate and print the state cost and other cost components
-        # state_cost_val, control_cost_val, final_state_cost_val, input_diff_cost_val, distance_cost_val, collision_cost_val = cost_fn(opt_values)
-        
-        # print("\n------")
-        # print(f"State Cost: {state_cost_val}")
-        # print(f"Control Cost: {control_cost_val}")
-        # print(f"Final State Cost: {final_state_cost_val}")
-        # print(f"Input Difference Cost: {input_diff_cost_val}")
-        # print(f"Distance Cost: {distance_cost_val}")
-        # print(f"Collision Cost: {collision_cost_val}")
 
-        # u_opt = sol['x'][n_states * (N + 1):].full().reshape((N, n_controls))
         self.last_acc = u_opt[0, 0]
 
         mpc_action = MPC_Action(acceleration=u_opt[0, 0], steer=u_opt[0, 1])
@@ -488,49 +429,11 @@ class PureMPC_Agent(Agent):
         self.is_collide = np.any(self.agent_collide)
         # return self.is_collide
 
-    # def calculate_ego_eta(self, distance, ego_index, acceleration: float = 1, max_speed=10):
-    #     current_speed = self.ego_vehicle.speed
-        
-    #     # Ego vehicle's velocity direction
-    #     velocity_vector = np.array([
-    #         current_speed * np.cos(self.ego_vehicle.heading),
-    #         current_speed * np.sin(self.ego_vehicle.heading),
-    #     ])
-        
-    #     # Reference trajectory direction at the target point
-    #     trajectory_vector = np.array([
-    #         max_speed * np.cos(self.reference_states[ego_index, 3]),
-    #         max_speed * np.sin(self.reference_states[ego_index, 3]),
-    #     ])
-
-    #     # Determine if the vehicle is moving along the trajectory direction
-    #     sign = 1 if np.dot(velocity_vector, trajectory_vector) > 0 else -1
-    #     adjusted_speed = sign * current_speed
-
-    #     # Check if speed is already at or above max speed
-    #     if adjusted_speed >= max_speed:
-    #         return distance / max_speed
-        
-    #     # Calculate distance needed to reach max speed with the given acceleration
-    #     if acceleration > 0:
-    #         distance_to_reach_vmax = (max_speed**2 - adjusted_speed**2) / (2 * acceleration)
-    #     else:
-    #         return np.inf  # Avoid division by zero if acceleration is zero or negative
-
-    #     if distance > distance_to_reach_vmax:
-    #         # Time to accelerate to max speed and then travel the remaining distance
-    #         time_to_accelerate = (max_speed - adjusted_speed) / acceleration
-    #         return time_to_accelerate + (distance - distance_to_reach_vmax) / max_speed
-    #     else:
-    #         # Distance is within reach before hitting max speed
-    #         achievable_speed = np.sqrt(2 * acceleration * distance + adjusted_speed**2)
-    #         return achievable_speed
-    
-    ### Previous ego_eta function is wront. it sometimes returns speed rather than time. 
     ### This new function might be correct but needs revision
     def calculate_ego_eta(self, distance, ego_index, acceleration: float = 1, max_speed=10):
         current_speed = self.ego_vehicle.speed
-        acceleration = self.last_acc
+        # acceleration = self.last_acc
+        acceleration = 0
         print('current speed', current_speed)
         print('current acceleration', acceleration)
         # Ego vehicle's velocity direction
@@ -607,3 +510,126 @@ class PureMPC_Agent(Agent):
             new_reference_states[earliest_conflict_index:, 2] = 0
             
             return new_reference_states
+      
+
+    ''' Function from Gozde's implementation -- to be checked and used for collision avoidance'''  
+    # def calculate_distances(current_state, obstacles):
+    #     current_position = current_state[:2]
+    #     distances = [np.linalg.norm(current_position - np.array(obs[:2])) for obs in obstacles]
+    #     return distances
+    
+    # def determine_direction(ego_psi, other_psi):
+    #     # Calculate the absolute difference in heading
+    #     angle_diff = abs(ego_psi - other_psi)
+    #     # Normalize the difference to the range [0, pi]
+    #     angle_diff = angle_diff % np.pi
+    #     # Determine direction based on a threshold (e.g., 45 degrees in radians)
+    #     threshold = np.pi / 4
+    #     if angle_diff < threshold or angle_diff > (np.pi - threshold):
+    #         return "same"
+    #     else:
+    #         return "opposite"
+    
+    # def vehicle_model(state, action):
+    #     x, y, v, psi = state
+    #     a, delta = action
+        
+    #     beta = math.atan(0.5 * math.tan(delta))
+    #     x_next = x + v * math.cos(psi + beta) * dt
+    #     y_next = y + v * math.sin(psi + beta) * dt
+    #     v_next = max(0, v + a * dt)  # Ensure that speed does not go negative
+    #     psi_next = psi + v * math.sin(beta) / WHEELBASE * dt
+        
+    #     return np.array([x_next, y_next, v_next, psi_next])
+
+    # def find_closest_point(current_state, reference_trajectory):
+    #     current_position = current_state[:2]
+    #     distances = [np.linalg.norm(current_position - np.array(point[:2])) for point in reference_trajectory]
+    #     closest_index = np.argmin(distances)
+    #     return closest_index
+    
+    # def predict_vehicle_positions(state, action, steps, dt=0.1):
+    #     """ Predict future positions of a vehicle based on current state and action """
+    #     state = np.array(state)
+    #     predictions = []
+
+    #     for _ in range(steps):
+    #         state = vehicle_model(state, action)
+    #         predictions.append(state[:2])  # Append only x, y positions
+        
+    #     #print("predicted obstacles-----",predictions)
+    #     return predictions
+        
+    # def predict_others_future_positions(obstacles, ego_speed, steps, dt):
+    #     """ Predict future positions of all obstacles """
+    #     future_positions = []
+        
+    #     for obstacle in obstacles:
+    #         if len(obstacle) == 2:
+    #             x, y = obstacle
+    #             vx, vy = 0, 0  # Default to zero velocity if not provided
+    #             psi = 0
+    #         else:
+    #             x, y, vx, vy, psi, direction = obstacle
+    #             if direction == "same":
+    #                 # Add ego vehicle speed to the obstacle's speed
+    #                 v = np.sqrt(vx**2 + vy**2) + ego_speed
+    #                 # Recompute vx and vy based on the new speed
+    #                 vx = v * np.cos(psi)
+    #                 vy = v * np.sin(psi)
+    #             else:
+    #                 v = np.sqrt(vx**2 + vy**2)
+
+    #         state = [x, y, v, psi]
+            
+    #         action = [0, 0]  # Assuming constant velocity model for simplicity
+    #         future_positions.append(predict_vehicle_positions(state, action, steps, dt))
+        
+        
+    #     return future_positions
+
+    # def check_collisions(predicted_ego_path, predicted_obstacles, start_index=0):
+    #     collision_points = []
+    #     collision_detected = False
+    #     buffer = 2.6
+    #     half_width = buffer / 2 
+    #     time_steps_window = int(1.0 / dt)  # Number of steps to check within the time window
+        
+    #     for step, (px, py) in enumerate(predicted_ego_path[start_index:]):
+    #         ego_box = [(px - half_width, py - half_width), (px + half_width, py + half_width)]
+    #         for obs_future_positions in predicted_obstacles:
+    #             for obs_step in range(max(0, step - time_steps_window), min(len(obs_future_positions), step + time_steps_window + 1)):
+    #                 ox, oy = obs_future_positions[obs_step]
+    #                 distance_to_obstacle = np.sqrt((px - ox)**2 + (py - oy)**2)
+    #                 if distance_to_obstacle < 1.0:
+    #                     if (ego_box[0][0] <= ox <= ego_box[1][0]) and (ego_box[0][1] <= oy <= ego_box[1][1]):
+    #                         collision_points.append((px, py))
+    #                         collision_detected = True
+    #                         break  # Stop checking further obstacles if collision is detected
+    #     return collision_points, collision_detected
+    
+    # def process_observation(obs):
+    #     ego_vehicle = obs[0]
+        
+    #     x, y = ego_vehicle[1], ego_vehicle[2]
+    #     vx, vy = ego_vehicle[3], ego_vehicle[4]
+    #     v = np.sqrt(vx**2 + vy**2)
+        
+    #     psi = np.arctan2(vy, vx)  # Calculate heading from velocity
+        
+    #     current_state = np.array([x, y, v, psi])
+        
+    #     obstacles = []
+    #     directions = []
+    #     for vehicle in obs[1:]:
+    #         if vehicle[0] == 1:
+    #             ox, oy = vehicle[1], vehicle[2]
+    #             ovx = vehicle[3] if len(vehicle) > 3 else 0  # Set default velocity components if not available
+    #             ovy = vehicle[4] if len(vehicle) > 4 else 0
+    #             o_v = np.sqrt(ovx**2 + ovy**2)
+    #             o_psi = np.arctan2(ovy, ovx)
+    #             direction = determine_direction(psi, o_psi)
+    #             obstacles.append([ox, oy, ovx, ovy, o_psi, direction])
+    #             directions.append(direction)
+        
+    #     return current_state, obstacles, directions
