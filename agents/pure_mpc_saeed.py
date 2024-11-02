@@ -1153,8 +1153,14 @@ class PureMPC_Agent(Agent):
             new_reference_states = np.copy(self.reference_states)
             earliest_conflict_index = np.min(self.conflict_index) - 5 # Buffer
             n_points = earliest_conflict_index - self.ego_index
-            distance_to_conflict = LineString(self.reference_trajectory[self.ego_index: earliest_conflict_index+1, :2]).length
-            distance_to_conflict = distance_to_conflict - 2 # buffer
+            if n_points > 1:
+                distance_to_conflict = LineString(self.reference_trajectory[self.ego_index: earliest_conflict_index+1, :2]).length
+            else:
+                distance_to_conflict = 0  # Handle cases with only one or zero points
+            if distance_to_conflict > 2:
+                distance_to_conflict = distance_to_conflict - 2 # buffer
+            
+            
             # Calculate required deceleration
             current_speed = self.ego_vehicle.speed
             max_deceleration = - self.ego_vehicle.max_deceleration  # Should be positive
