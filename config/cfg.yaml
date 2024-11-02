@@ -14,7 +14,7 @@ pure_mpc:
   render_window_size: 6
   render_axis_range: 50
   # collision detection parameters
-  ttc_threshold: 2
+  ttc_threshold: 1
   detection_distance: 100
   speed_override: 0
   # weight parameters
