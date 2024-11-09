@@ -47,7 +47,7 @@ class BaseTrainer:
         )
 
     def save(self, file, path):
-        self.model.save(f"{path}/{self.version}/{file}")    
+        self.model.save(f"./{path}/{self.version}/{file}")    
 
     def load(self, path, mpcrl_cfg, version, pure_mpc_cfg, env):
         self.model.load(path, mpcrl_cfg, version, pure_mpc_cfg, env)

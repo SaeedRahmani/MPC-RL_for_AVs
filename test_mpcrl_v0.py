@@ -20,7 +20,7 @@ def test_mpcrl(cfg):
     # trainer.learn()
     # trainer.save()
     trainer.load(
-        "./v1.zip", 
+        "./weights/v1/test.zip", 
         mpcrl_cfg=mpcrl_agent_config, 
         version="v0", 
         pure_mpc_cfg=pure_mpc_agent_config,

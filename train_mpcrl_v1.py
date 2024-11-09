@@ -18,7 +18,7 @@ def train_mpcrl(cfg):
 
     trainer = DynamicWeightTrainer(env, mpcrl_agent_config, pure_mpc_agent_config)
     trainer.learn()
-    trainer.save(path="weights", file="test")
+    trainer.save(path="./weights/v1/", file="test")
             
 if __name__ == "__main__":
     train_mpcrl()
