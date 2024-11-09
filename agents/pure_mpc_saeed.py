@@ -733,10 +733,10 @@ class PureMPC_Agent(Agent):
         ):
         self._parse_obs(obs)
         self._check_collision()
-        mpc_action = self._solve(weights_from_RL)
+        mpc_action = self._solve(weights_from_RL, ref_speed)
         return mpc_action.numpy() if return_numpy else mpc_action
       
-    def _solve(self, weights_from_RL: dict[str, float]=None) -> MPC_Action:
+    def _solve(self, weights_from_RL: dict[str, float]=None, ref_speed_from_RL=None) -> MPC_Action:
         
         manual_collision_avoidance = True
         # MPC parameters
@@ -757,7 +757,7 @@ class PureMPC_Agent(Agent):
         else:
             # Use dynamic weights from RL agent
             weights = {
-                f"weight_{key}": weights_from_RL[i] 
+                f"weight_{key}": weights_from_RL[0, i] 
                 for i, key in enumerate(PureMPC_Agent.weight_components)
             }
 
@@ -768,7 +768,9 @@ class PureMPC_Agent(Agent):
         )
         
         # Generate new reference states, given the result of collision detection
-        ref = self.update_reference_states(speed_override=self.config["speed_override"])
+        ref = self.update_reference_states(
+            speed_override=self.config["speed_override"],
+            speed_overide_from_RL=ref_speed_from_RL)
         
         # distances = [np.linalg.norm(self.ego_vehicle.position - np.array(point[:2])) for point in ref]
         closest_index = self.ego_index
@@ -798,8 +800,8 @@ class PureMPC_Agent(Agent):
             
             speed_weight = 1
             if self.is_collide:
-                print('collision', self.is_collide)
-                print('ref v', ref_v)
+                # print('collision', self.is_collide)
+                # print('ref v', ref_v)
                 speed_weight = 100
                 
             # State cost
@@ -930,9 +932,6 @@ class PureMPC_Agent(Agent):
         for _ in range(N):
             lbx += [-5, -ca.pi / 3]  # Lower bounds [acceleration, steer_angle]
             ubx += [5, ca.pi / 3]    # Upper bounds [acceleration, steer_angle]
-
-        print('lbx', lbx)
-        print('ubx', ubx)
         
         # Create the optimization problem
         nlp = {
@@ -958,10 +957,10 @@ class PureMPC_Agent(Agent):
         
         # # Solve the optimization problem
         opt_values = sol['x'].full()
-        print('optimal values', opt_values)
+        # print('optimal values', opt_values)
         u_opt = sol['x'][-N * n_controls:].full().reshape(N, n_controls)
-        print('optimal input values', u_opt)
-        print('first acc', u_opt[0, 0])
+        # print('optimal input values', u_opt)
+        # print('first acc', u_opt[0, 0])
 
         self.last_acc = u_opt[0, 0]
 
@@ -1075,7 +1074,7 @@ class PureMPC_Agent(Agent):
                         ego_eta = self.calculate_ego_eta(ego_dist, ego_index, self.last_acc, max_speed=10) 
 
                         if np.abs(ego_eta - agent_eta) < self.ttc_threshold:
-                            print(np.abs(ego_eta - agent_eta), agent_eta)
+                            # print(np.abs(ego_eta - agent_eta), agent_eta)
                             self.agent_collide.append(True)
                             self.conflict_points.append((intersection.x, intersection.y))
                             self.conflict_index.append(agent_index)
@@ -1100,8 +1099,8 @@ class PureMPC_Agent(Agent):
         current_speed = self.ego_vehicle.speed
         # acceleration = self.last_acc
         acceleration = 0
-        print('current speed', current_speed)
-        print('current acceleration', acceleration)
+        # print('current speed', current_speed)
+        # print('current acceleration', acceleration)
         # Ego vehicle's velocity direction
         velocity_vector = np.array([
             current_speed * np.cos(self.ego_vehicle.heading),
@@ -1146,7 +1145,11 @@ class PureMPC_Agent(Agent):
 
         return t
     
-    def update_reference_states(self, speed_override=None) -> np.ndarray:
+    def update_reference_states(self, speed_override=None, speed_overide_from_RL=None) -> np.ndarray:
+        if speed_overide_from_RL is not None:
+            new_ref = np.copy(self.reference_states)
+            new_ref[:, 2] = speed_overide_from_RL
+            return new_ref 
         if not self.is_collide:
             return np.copy(self.reference_states)
         else:
