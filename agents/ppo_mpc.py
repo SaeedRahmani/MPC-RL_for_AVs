@@ -110,7 +110,7 @@ class PPO_MPC(PPO):
         ent_coef: float = 0.0,
         vf_coef: float = 0.5,
         max_grad_norm: float = 0.5,
-        use_sde: bool = False,
+        use_sde: bool = True,
         sde_sample_freq: int = -1,
         rollout_buffer_class: Optional[Type[RolloutBuffer]] = None,
         rollout_buffer_kwargs: Optional[Dict[str, Any]] = None,
