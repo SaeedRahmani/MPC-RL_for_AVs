@@ -28,22 +28,22 @@ pure_mpc:
 mpc_rl:
 
   v0: # reference speed version
-    action_space_dim: 85
+    action_space_dim: 1
     algo: ppo
-    lr: 0.000001
-    n_steps: 800
+    lr: 0.0003
+    n_steps: 64
     batch_size: 64
     n_epochs: 10
-    total_timesteps: 500      
+    total_timesteps: 128      
     show_progress_bar: True
 
   v1: # dynamic weights version
-    action_space_dim: 10
+    action_space_dim: 6
     algo: ppo
     lr: 0.000001
-    n_steps: 800
+    n_steps: 64
     batch_size: 64
     n_epochs: 10
-    total_timesteps: 3e3    
+    total_timesteps: 256    
     show_progress_bar: True
 rl:

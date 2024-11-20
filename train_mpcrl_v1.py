@@ -10,7 +10,7 @@ from config.config import build_env_config, build_mpcrl_agent_config, build_pure
 def train_mpcrl(cfg):
     
     gym_env_config = build_env_config(cfg)
-    mpcrl_agent_config = build_mpcrl_agent_config(cfg)
+    mpcrl_agent_config = build_mpcrl_agent_config(cfg, version="v1")
     pure_mpc_agent_config = build_pure_mpc_agent_config(cfg)
 
     # env

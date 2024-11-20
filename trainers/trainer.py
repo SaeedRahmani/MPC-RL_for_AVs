@@ -115,14 +115,16 @@ class BaseTrainer:
 class RefSpeedTrainer(BaseTrainer):
     def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict):
         super(RefSpeedTrainer, self).__init__(env, mpcrl_cfg, pure_mpc_cfg)
-
+        self.version = "v0"
+        
     def _build_model(self, version="v0"):
         return super()._build_model(version)
 
 class DynamicWeightTrainer(BaseTrainer):
     def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict):
         super(DynamicWeightTrainer, self).__init__(env, mpcrl_cfg, pure_mpc_cfg)
-
+        self.version = "v1"
+        
     def _build_model(self, version="v1"):
         return super()._build_model(version)
 

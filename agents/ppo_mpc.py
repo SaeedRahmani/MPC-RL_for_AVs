@@ -398,10 +398,13 @@ class PPO_MPC(PPO):
             if self.version == "v0":
                 ref_speed = clipped_actions
                 weights_from_RL = None
+                # print("version 0", actions)
+
             else:
                 ref_speed = None
                 weights_from_RL = clipped_actions
-                
+                # print("version 1", actions)
+            
             # let mpc agent work!
             mpc_action = self.mpc_agent.predict(
                 obs=np.squeeze(self._last_obs, axis=0),
