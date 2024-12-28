@@ -8,7 +8,7 @@ env:
 
 # New config that works with different algorithms
 mpc_rl:
-  algorithm: "a2c"  # or "ppo"
+  algorithm: "ppo"  # or "a2c"
   a2c:
     v0:
       action_space_dim: 1  # From old v0 config
@@ -25,6 +25,7 @@ mpc_rl:
       use_sde: false
       sde_sample_freq: -1
       normalize_advantage: false
+      show_progress_bar: true  
     v1:
       action_space_dim: 6  # From old v0 config
       learning_rate: 7e-4
@@ -40,6 +41,7 @@ mpc_rl:
       use_sde: false
       sde_sample_freq: -1
       normalize_advantage: false
+      show_progress_bar: true  
   ppo:
     v0:
       action_space_dim: 1  # From old v0 config
@@ -52,6 +54,7 @@ mpc_rl:
       gae_lambda: 0.95
       clip_range: 0.2
       normalize_advantage: true
+      show_progress_bar: true
     v1:
       action_space_dim: 6  # From old v1 config
       learning_rate: 0.000001  # From old lr
@@ -63,6 +66,7 @@ mpc_rl:
       gae_lambda: 0.95
       clip_range: 0.2
       normalize_advantage: true
+      show_progress_bar: true
 
 pure_mpc:
   # mpc parameters 

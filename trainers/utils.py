@@ -25,6 +25,24 @@ def create_a2c_policy(action_dim: int):
 
     return A2C_Policy  # Return the dynamically created class
 
+def create_ppo_policy(action_dim: int):
+    """
+    Dynamically return a PPO Policy class with a specified action dimension.
+    """
+    class PPO_Policy(ActorCriticPolicy):
+        def __init__(self, observation_space, action_space, lr_schedule, net_arch=None, **kwargs):
+            # Set the action space based on the provided action_dim
+            action_space = Box(
+                low=-1 * np.ones(action_dim),
+                high=np.ones(action_dim),
+                shape=(action_dim,),
+                dtype=np.float32,
+            )
+
+            super().__init__(observation_space, action_space, lr_schedule, net_arch, **kwargs)
+
+    return PPO_Policy  # Return the dynamically created class
+
 def create_callback_func():
     """
     Dynamically create and return an MPC Callback class.

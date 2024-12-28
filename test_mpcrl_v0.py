@@ -8,7 +8,10 @@ from config.config import build_env_config, build_mpcrl_agent_config, build_pure
 
 @hydra.main(config_name="cfg", config_path="./config", version_base="1.3")
 def test_mpcrl(cfg):
-    algorithm = cfg["mpc_rl"]["algorithm"]
+    # Specify algorithm directly here
+    cfg.mpc_rl.algorithm = "ppo"  # or "a2c"
+    algorithm = cfg.mpc_rl.algorithm  
+    
     gym_env_config = build_env_config(cfg)
     gym_env_config = build_env_config(cfg)
     mpcrl_agent_config = build_mpcrl_agent_config(cfg, version="v0")
