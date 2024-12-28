@@ -44,7 +44,12 @@ def build_env_config(cfg) -> dict:
     }
 
 def build_mpcrl_agent_config(cfg, version: str = "v0") -> dict:
-    return cfg["mpc_rl"][version]
+    # return cfg["mpc_rl"][version]
+    # Changed to work with the new config file
+    algorithm = cfg["mpc_rl"]["algorithm"]
+    config = cfg["mpc_rl"][algorithm][version]
+    config["algorithm"] = algorithm
+    return config
 
 def build_pure_mpc_agent_config(cfg) -> dict:
     return cfg["pure_mpc"]

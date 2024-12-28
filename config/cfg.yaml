@@ -1,49 +1,100 @@
 env:
-  vehicles_count: 20
-  initial_vehicle_count: 10
+  vehicles_count: 10
+  initial_vehicle_count: 5
   absolute: True
   normalize: False
   order: sorted
   spawn_probability: 0.3
 
-pure_mpc:
-  # mpc parameters 
-  horizon: 16
-  # render options
-  render: true
-  render_window_size: 6
-  render_axis_range: 50
-  # collision detection parameters
-  ttc_threshold: 1
-  detection_distance: 100
-  speed_override: 0
-  # weight parameters
-  weight_state: 10
-  weight_control: 1
-  weight_final_state: 1
-  weight_input_diff: 1
-  weight_distance: 10
-  weight_collision: 1
-
+# New config that works with different algorithms
 mpc_rl:
+  algorithm: "a2c"  # or "ppo"
+  a2c:
+    v0:
+      learning_rate: 7e-4
+      n_steps: 5
+      gamma: 0.99
+      gae_lambda: 1.0
+      ent_coef: 0.0
+      vf_coef: 0.5
+      max_grad_norm: 0.5
+      rms_prop_eps: 1e-5
+      use_rms_prop: true
+      use_sde: false
+      sde_sample_freq: -1
+      normalize_advantage: false
+    v1:
+      learning_rate: 7e-4
+      n_steps: 5
+      gamma: 0.99
+      gae_lambda: 1.0
+      ent_coef: 0.0
+      vf_coef: 0.5
+      max_grad_norm: 0.5
+      rms_prop_eps: 1e-5
+      use_rms_prop: true
+      use_sde: false
+      sde_sample_freq: -1
+      normalize_advantage: false
+  ppo:
+    v0:
+      learning_rate: 3e-4
+      n_steps: 2048
+      batch_size: 64
+      n_epochs: 10
+      gamma: 0.99
+      gae_lambda: 0.95
+      clip_range: 0.2
+      normalize_advantage: true
+    v1:
+      learning_rate: 3e-4
+      n_steps: 2048
+      batch_size: 64
+      n_epochs: 10
+      gamma: 0.99
+      gae_lambda: 0.95
+      clip_range: 0.2
+      normalize_advantage: true
 
-  v0: # reference speed version
-    action_space_dim: 1
-    algo: ppo
-    lr: 0.0003
-    n_steps: 64
-    batch_size: 64
-    n_epochs: 10
-    total_timesteps: 128      
-    show_progress_bar: True
+# pure_mpc:
+#   # mpc parameters 
+#   horizon: 16
+#   # render options
+#   render: true
+#   render_window_size: 6
+#   render_axis_range: 50
+#   # collision detection parameters
+#   ttc_threshold: 1
+#   detection_distance: 100
+#   speed_override: 0
+#   # weight parameters
+#   weight_state: 10
+#   weight_control: 1
+#   weight_final_state: 1
+#   weight_input_diff: 1
+#   weight_distance: 10
+#   weight_collision: 1
 
-  v1: # dynamic weights version
-    action_space_dim: 6
-    algo: ppo
-    lr: 0.000001
-    n_steps: 64
-    batch_size: 64
-    n_epochs: 10
-    total_timesteps: 256    
-    show_progress_bar: True
-rl:
+# mpc_rl:
+
+#   v0: # reference speed version
+#     action_space_dim: 1
+#     # algo: ppo
+#     algo: a2c
+#     lr: 0.0003
+#     n_steps: 64
+#     batch_size: 64
+#     n_epochs: 10
+#     total_timesteps: 128      
+#     show_progress_bar: True
+
+#   v1: # dynamic weights version
+#     action_space_dim: 6
+#     algo: ppo
+#     lr: 0.000001
+#     n_steps: 64
+#     batch_size: 64
+#     n_epochs: 10
+#     total_timesteps: 256    
+#     show_progress_bar: True
+# rl:

@@ -8,7 +8,8 @@ from config.config import build_env_config, build_mpcrl_agent_config, build_pure
 
 @hydra.main(config_name="cfg", config_path="./config", version_base="1.3")
 def test_mpcrl(cfg):
-    
+    algorithm = cfg["mpc_rl"]["algorithm"]
+    gym_env_config = build_env_config(cfg)
     gym_env_config = build_env_config(cfg)
     mpcrl_agent_config = build_mpcrl_agent_config(cfg, version="v0")
     pure_mpc_agent_config = build_pure_mpc_agent_config(cfg)
@@ -20,8 +21,7 @@ def test_mpcrl(cfg):
     # trainer.learn()
     # trainer.save()
     trainer.load(
-        # "./weights/v1/test.zip",
-        "./weights/v0/v0/test",
+        path=f"./weights/v0", file=f"test_{algorithm}_v0",
         mpcrl_cfg=mpcrl_agent_config, 
         version="v0", 
         pure_mpc_cfg=pure_mpc_agent_config,
