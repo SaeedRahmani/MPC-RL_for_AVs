@@ -46,10 +46,15 @@ def build_env_config(cfg) -> dict:
 def build_mpcrl_agent_config(cfg, version: str = "v0") -> dict:
     # return cfg["mpc_rl"][version]
     # Changed to work with the new config file
+    """Build MPC-RL agent configuration based on algorithm and version."""
     algorithm = cfg["mpc_rl"]["algorithm"]
-    config = cfg["mpc_rl"][algorithm][version]
-    config["algorithm"] = algorithm
-    return config
+    # Convert OmegaConf to dict and add algorithm
+    config = dict(cfg["mpc_rl"][algorithm][version])
+    # Add algorithm in new dict
+    return {
+        **config,
+        "algorithm": algorithm
+    }
 
 def build_pure_mpc_agent_config(cfg) -> dict:
     return cfg["pure_mpc"]
