@@ -1,10 +1,72 @@
 env:
-  vehicles_count: 20
-  initial_vehicle_count: 10
+  vehicles_count: 10
+  initial_vehicle_count: 5
   absolute: True
   normalize: False
   order: sorted
   spawn_probability: 0.3
+
+# New config that works with different algorithms
+mpc_rl:
+  algorithm: "ppo"  # or "a2c"
+  a2c:
+    v0:
+      action_space_dim: 1  # From old v0 config
+      learning_rate: 7e-4
+      n_steps: 5
+      total_timesteps: 128  # From old total_timesteps
+      gamma: 0.99
+      gae_lambda: 1.0
+      ent_coef: 0.0
+      vf_coef: 0.5
+      max_grad_norm: 0.5
+      rms_prop_eps: 1e-5
+      use_rms_prop: true
+      use_sde: false
+      sde_sample_freq: -1
+      normalize_advantage: false
+      show_progress_bar: true  
+    v1:
+      action_space_dim: 6  # From old v0 config
+      learning_rate: 7e-4
+      n_steps: 5
+      total_timesteps: 256  # From old total_timesteps
+      gamma: 0.99
+      gae_lambda: 1.0
+      ent_coef: 0.0
+      vf_coef: 0.5
+      max_grad_norm: 0.5
+      rms_prop_eps: 1e-5
+      use_rms_prop: true
+      use_sde: false
+      sde_sample_freq: -1
+      normalize_advantage: false
+      show_progress_bar: true  
+  ppo:
+    v0:
+      action_space_dim: 1  # From old v0 config
+      learning_rate: 0.0003  # From old lr
+      n_steps: 2048
+      total_timesteps: 128  # From old total_timesteps
+      batch_size: 64
+      n_epochs: 10
+      gamma: 0.99
+      gae_lambda: 0.95
+      clip_range: 0.2
+      normalize_advantage: true
+      show_progress_bar: true
+    v1:
+      action_space_dim: 6  # From old v1 config
+      learning_rate: 0.000001  # From old lr
+      n_steps: 2048
+      total_timesteps: 256  # From old total_timesteps
+      batch_size: 64
+      n_epochs: 10
+      gamma: 0.99
+      gae_lambda: 0.95
+      clip_range: 0.2
+      normalize_advantage: true
+      show_progress_bar: true
 
 pure_mpc:
   # mpc parameters 
@@ -25,25 +87,26 @@ pure_mpc:
   weight_distance: 10
   weight_collision: 1
 
-mpc_rl:
+# mpc_rl:
 
-  v0: # reference speed version
-    action_space_dim: 1
-    algo: ppo
-    lr: 0.0003
-    n_steps: 64
-    batch_size: 64
-    n_epochs: 10
-    total_timesteps: 128      
-    show_progress_bar: True
+#   v0: # reference speed version
+#     action_space_dim: 1
+#     # algo: ppo
+#     algo: a2c
+#     lr: 0.0003
+#     n_steps: 64
+#     batch_size: 64
+#     n_epochs: 10
+#     total_timesteps: 128      
+#     show_progress_bar: True
 
-  v1: # dynamic weights version
-    action_space_dim: 6
-    algo: ppo
-    lr: 0.000001
-    n_steps: 64
-    batch_size: 64
-    n_epochs: 10
-    total_timesteps: 256    
-    show_progress_bar: True
-rl:
+#   v1: # dynamic weights version
+#     action_space_dim: 6
+#     algo: ppo
+#     lr: 0.000001
+#     n_steps: 64
+#     batch_size: 64
+#     n_epochs: 10
+#     total_timesteps: 256    
+#     show_progress_bar: True
+# rl:

@@ -1148,7 +1148,7 @@ class PureMPC_Agent(Agent):
     def update_reference_states(self, speed_override=None, speed_overide_from_RL=None) -> np.ndarray:
         if speed_overide_from_RL is not None:
             new_ref = np.copy(self.reference_states)
-            new_ref[:, 2] = speed_overide_from_RL
+            new_ref[:, 2] = speed_overide_from_RL[0,0]
             return new_ref 
         if not self.is_collide:
             return np.copy(self.reference_states)

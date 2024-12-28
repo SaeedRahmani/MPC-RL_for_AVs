@@ -7,6 +7,10 @@ import numpy as np
 from gymnasium import spaces
 from torch.nn import functional as F
 
+from typing import Any, ClassVar, Dict, Optional, Type, TypeVar, Union
+from pathlib import Path  # Add this import
+from io import BufferedIOBase  # Add this import as well since it's used
+
 from stable_baselines3.common.buffers import RolloutBuffer
 from stable_baselines3.common.on_policy_algorithm import OnPolicyAlgorithm
 from stable_baselines3.common.policies import ActorCriticCnnPolicy, ActorCriticPolicy, BasePolicy, MultiInputActorCriticPolicy
@@ -71,6 +75,8 @@ class A2C_MPC(A2C):
 
     def __init__(
         self,
+        mpcrl_cfg: Dict,
+        version: str, 
         pure_mpc_cfg: Dict,
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
@@ -97,8 +103,8 @@ class A2C_MPC(A2C):
         _init_setup_model: bool = True,
     ):
         super().__init__(
-            policy,
-            env,
+            policy=policy,
+            env=env,
             learning_rate=learning_rate,
             n_steps=n_steps,
             gamma=gamma,
@@ -128,14 +134,22 @@ class A2C_MPC(A2C):
             self.policy_kwargs["optimizer_class"] = th.optim.RMSprop
             self.policy_kwargs["optimizer_kwargs"] = dict(alpha=0.99, eps=rms_prop_eps, weight_decay=0)
 
+        # Save A2C specific parameters
+        self.normalize_advantage = normalize_advantage
+
         if _init_setup_model:
             self._setup_model()
-
-        # initialize MPC agent
+            
+        # Initialize MPC agent after setup_model
+        self.version = version
+        self.pure_mpc_cfg = pure_mpc_cfg
         self.mpc_agent = PureMPC_Agent(
             env=self.env.envs[0],
             cfg=pure_mpc_cfg,
         )
+    
+    def _setup_model(self) -> None:
+        super()._setup_model()  # Basic setup is sufficient
 
     def train(self) -> None:
         """
@@ -331,3 +345,109 @@ class A2C_MPC(A2C):
         callback.on_rollout_end()
 
         return True
+    
+    # def save(
+    #     self,
+    #     path: Union[str, Path, BufferedIOBase],
+    #     exclude: Optional[List[str]] = None,
+    #     include: Optional[List[str]] = None,
+    # ) -> None:
+    #     super().save(path, exclude, include)
+    #     self.mpc_agent.save(str(path) + "_mpc")
+    @classmethod
+    def load(
+        cls,
+        path: Union[str, Path, BufferedIOBase],
+        env: Optional[GymEnv] = None,
+        device: Union[th.device, str] = "auto",
+        force_reset: bool = True,
+        **kwargs,
+    ) -> "A2C_MPC":
+        """
+        Load the model from a zip-file
+
+        :param path: path to the file (or a buffer to read from)
+        :param env: the new environment to run the loaded model on
+        :param device: Device on which the code should run.
+        :param force_reset: Force call to ``env.reset()`` before training
+        :param kwargs: extra arguments to change the model when loading
+        :return: new model instance with loaded parameters
+        """
+        data, params, pytorch_variables = load_from_zip_file(path, device=device)
+
+        # Remove stored device information and replace with ours
+        if "policy_kwargs" in data:
+            if "device" in data["policy_kwargs"]:
+                del data["policy_kwargs"]["device"]
+
+        if "policy_kwargs" in kwargs and kwargs["policy_kwargs"] != data["policy_kwargs"]:
+            raise ValueError(
+                f"The specified policy kwargs do not equal the stored policy kwargs."
+                f"Stored kwargs: {data['policy_kwargs']}, specified kwargs: {kwargs['policy_kwargs']}"
+            )
+
+        if env is not None:
+            # Wrap first if needed
+            env = cls._wrap_env(env, data["verbose"])
+            # Check if given env is valid
+            check_for_correct_spaces(env, data["observation_space"], data["action_space"])
+            # Discard `_last_obs`, this will force the env to reset before training
+            if force_reset and data is not None:
+                data["_last_obs"] = None
+            # `n_envs` must be updated
+            if data is not None:
+                data["n_envs"] = env.num_envs
+        else:
+            # Use stored env, if one exists
+            if "env" in data:
+                env = data["env"]
+
+        # noinspection PyArgumentList
+        model = cls(
+            mpcrl_cfg=data.get("mpcrl_cfg"),
+            version=data.get("version"),
+            pure_mpc_cfg=data.get("pure_mpc_cfg"),
+            policy=data["policy_class"],
+            env=env,
+            learning_rate=data.get("learning_rate", 7e-4),  # A2C default
+            n_steps=data.get("n_steps", 5),  # A2C default
+            gamma=data.get("gamma", 0.99),
+            gae_lambda=data.get("gae_lambda", 1.0),  # A2C default
+            ent_coef=data.get("ent_coef", 0.0),
+            vf_coef=data.get("vf_coef", 0.5),
+            max_grad_norm=data.get("max_grad_norm", 0.5),
+            rms_prop_eps=data.get("rms_prop_eps", 1e-5),  # A2C specific
+            use_rms_prop=data.get("use_rms_prop", True),  # A2C specific
+            use_sde=data.get("use_sde", False),
+            sde_sample_freq=data.get("sde_sample_freq", -1),
+            normalize_advantage=data.get("normalize_advantage", False),
+            stats_window_size=data.get("stats_window_size", 100),
+            tensorboard_log=data.get("tensorboard_log", None),
+            policy_kwargs=data.get("policy_kwargs", None),
+            verbose=data.get("verbose", 0),
+            seed=data.get("seed", None),
+            device=device,
+            _init_setup_model=False,
+        )
+
+        # load parameters
+        model.__dict__.update(data)
+        model.__dict__.update(kwargs)
+        model._setup_model()
+
+        # put state_dicts back in place
+        model.set_parameters(params, exact_match=True, device=device)
+
+        # put other pytorch variables back in place
+        if pytorch_variables is not None:
+            for name in pytorch_variables:
+                recursive_setattr(model, name, pytorch_variables[name])
+
+        # Sample gSDE exploration matrix, so it uses the right device
+        if model.use_sde:
+            model.policy.reset_noise()
+
+        if force_reset and model.get_env() is not None:
+            model.env.reset()
+
+        return model
