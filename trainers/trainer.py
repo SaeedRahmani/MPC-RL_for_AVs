@@ -66,12 +66,20 @@ class BaseTrainer:
                 ref_speed=RL_output.detach().numpy(),
             )
         else:
+            old_min, old_max = -9.5987, 3.2251  # Obtained from debug prints
+            new_min, new_max = 1, 100
+
+        # Apply rescaling formula
+            weights_from_RL = ((RL_output - old_min) / (old_max - old_min)) * (new_max - new_min) + new_min
+            weights_from_RL = weights_from_RL.detach().numpy()
             mpc_action = self.model.mpc_agent.predict(
                 obs=obs,
                 return_numpy=return_numpy,
-                weights_from_RL=RL_output.detach().numpy(),
+                weights_from_RL = weights_from_RL,
                 ref_speed=None,
-            )            
+            )  
+            
+            print("rl_out",weights_from_RL)          
             # mpc_action = mpc_action.reshape((1,2))    
         return mpc_action
 

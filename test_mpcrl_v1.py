@@ -20,7 +20,7 @@ def test_mpcrl(cfg):
     # trainer.learn()
     # trainer.save()
     trainer.load(
-        "./weights/v1/test", 
+        "./weights/v1/v1/test", 
         mpcrl_cfg=mpcrl_agent_config, 
         version="v1", 
         pure_mpc_cfg=pure_mpc_agent_config,
@@ -32,6 +32,7 @@ def test_mpcrl(cfg):
     print(observation)
     for i in range(100):
         action = trainer.predict(observation, False)
+       
 
         observation, reward, done, truncated, info = env.step([action.acceleration/5, action.steer/(np.pi/3)])
         env.render()

@@ -110,7 +110,7 @@ class PPO_MPC(PPO):
         ent_coef: float = 0.0,
         vf_coef: float = 0.5,
         max_grad_norm: float = 0.5,
-        use_sde: bool = True,
+        use_sde: bool = True, 
         sde_sample_freq: int = -1,
         rollout_buffer_class: Optional[Type[RolloutBuffer]] = None,
         rollout_buffer_kwargs: Optional[Dict[str, Any]] = None,
@@ -393,7 +393,10 @@ class PPO_MPC(PPO):
                 else:
                     # Otherwise, clip the actions to avoid out of bound error
                     # as we are sampling from an unbounded Gaussian distribution
-                    clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
+                    low = np.ones(6)
+                    high = np.full(6,100.0)
+                    clipped_actions = np.clip(actions, low, high)
+                    
 
             if self.version == "v0":
                 ref_speed = clipped_actions
@@ -402,8 +405,8 @@ class PPO_MPC(PPO):
 
             else:
                 ref_speed = None
-                weights_from_RL = clipped_actions
-                # print("version 1", actions)
+                weights_from_RL =  clipped_actions#clipped_actions
+                print("version 1", clipped_actions)
             
             # let mpc agent work!
             mpc_action = self.mpc_agent.predict(

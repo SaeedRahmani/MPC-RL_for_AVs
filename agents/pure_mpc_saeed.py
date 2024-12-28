@@ -11,7 +11,7 @@ from .base import Agent
 from .utils import MPC_Action, Vehicle
 
 
-class PureMPC_Agent(Agent):
+class PureMPC_Agent2(Agent):
 
     weight_components = [
         "state", 
@@ -91,10 +91,12 @@ class PureMPC_Agent(Agent):
             weights = self.default_weights
         else:
             # Use dynamic weights from RL agent
-            weights = {
-                f"weight_{key}": weights_from_RL[i] 
-                for i, key in enumerate(PureMPC_Agent.weight_components)
-            }
+            # weights = {
+            #     f"weight_{key}": weights_from_RL[i] 
+            #     for i, key in enumerate(PureMPC_Agent.weight_components)
+            # }
+            weights = self.default_weights.copy()  # Start with defaults
+            weights["weight_speed"] = weights_from_RL.get("weight_speed", self.default_weights["weight_speed"])
 
         # Get the index on the reference trajectory for ego vehicle
         self.ego_index = np.argmin(
@@ -141,7 +143,7 @@ class PureMPC_Agent(Agent):
             state_cost += (
                 4 * perp_deviation**2 + 
                 2 * para_deviation**2 +
-                speed_weight * (x[3, k] - ref_v)**2 + 
+                weights["weight_speed"] * (x[3, k] - ref_v)**2 + 
                 # speed_weight * x[3, k]**2 +
                 0.5 * (x[2, k] - ref_heading)**2
             )
@@ -684,7 +686,8 @@ class PureMPC_Agent(Agent):
         "distance", 
         "collision", 
         "input_diff", 
-        "final_state"
+        "final_state",
+        "speed"
     ]
 
     def __init__(
@@ -756,10 +759,10 @@ class PureMPC_Agent(Agent):
             weights = self.default_weights
         else:
             # Use dynamic weights from RL agent
-            weights = {
-                f"weight_{key}": weights_from_RL[0, i] 
-                for i, key in enumerate(PureMPC_Agent.weight_components)
-            }
+            weights = self.default_weights.copy()  # Start with defaults
+            print("weight RL",weights_from_RL)
+            weights["weight_speed"] = int(weights_from_RL[0, 0])
+            print("WEİGHT",weights)
 
         # Get the index on the reference trajectory for ego vehicle
         self.ego_index = np.argmin(
@@ -808,7 +811,7 @@ class PureMPC_Agent(Agent):
             state_cost += (
                 4 * perp_deviation**2 + 
                 2 * para_deviation**2 +
-                speed_weight * (x[3, k] - ref_v)**2 + 
+                weights["weight_speed"] * (x[3, k] - ref_v)**2 + 
                 # speed_weight * x[3, k]**2 +
                 0.5 * (x[2, k] - ref_heading)**2
             )
@@ -865,10 +868,14 @@ class PureMPC_Agent(Agent):
             input_diff_cost * weights["weight_input_diff"] +
             final_state_cost * weights["weight_final_state"]
         )
+        
+        
 
         # Define a function to evaluate each cost component based on the optimized state and control inputs
         cost_fn = ca.Function('cost_fn', [ca.vertcat(ca.reshape(x, -1, 1), ca.reshape(u, -1, 1))],
                               [state_cost, control_cost, final_state_cost, input_diff_cost, distance_cost, collision_cost])
+        
+        
 
 
         # Define the vehicle dynamics using the Kinematic Bicycle Model

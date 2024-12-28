@@ -24,6 +24,7 @@ pure_mpc:
   weight_input_diff: 1
   weight_distance: 10
   weight_collision: 1
+  weight_speed : 1
 
 mpc_rl:
 
@@ -34,7 +35,7 @@ mpc_rl:
     n_steps: 64
     batch_size: 64
     n_epochs: 10
-    total_timesteps: 128      
+    total_timesteps: 2048      
     show_progress_bar: True
 
   v1: # dynamic weights version
