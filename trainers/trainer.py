@@ -84,12 +84,6 @@ class BaseTrainer:
 
   
     def _build_model(self, version="v1"):
-        """
-        Build model with appropriate policy and parameters based on algorithm type.
-        
-        Args:
-            version (str): Version of the configuration to use (v0 or v1)
-        """
         # Determine algorithm and build policy
         self.algo: BaseAlgorithm = self._specify_algo()
         algorithm = self.mpcrl_cfg["algorithm"]
@@ -133,8 +127,22 @@ class BaseTrainer:
                 "use_rms_prop": self.mpcrl_cfg.get("use_rms_prop", True),
             })
 
-        # Create model with appropriate parameters
+        # Initialize the model with the selected algorithm and parameters
         self.model = self.algo(**common_params)
+
+        # Replace the action space in the model
+        new_action_space = Box(
+            low=-1 * np.ones(action_dim),
+            high=np.ones(action_dim),
+            shape=(action_dim,),
+            dtype=np.float32,
+        )
+        self.model.action_space = new_action_space
+
+        # Replace the action dimension in the rollout buffer, if applicable
+        if hasattr(self.model, "rollout_buffer") and self.model.rollout_buffer is not None:
+            self.model.rollout_buffer.action_dim = action_dim
+
     
     # def _build_model(self, version="v1"):
     #     # Build the policy (neural network) with modified action_dim
