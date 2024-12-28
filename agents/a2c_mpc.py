@@ -103,8 +103,8 @@ class A2C_MPC(A2C):
         _init_setup_model: bool = True,
     ):
         super().__init__(
-            policy,
-            env,
+            policy=policy,
+            env=env,
             learning_rate=learning_rate,
             n_steps=n_steps,
             gamma=gamma,
@@ -134,22 +134,22 @@ class A2C_MPC(A2C):
             self.policy_kwargs["optimizer_class"] = th.optim.RMSprop
             self.policy_kwargs["optimizer_kwargs"] = dict(alpha=0.99, eps=rms_prop_eps, weight_decay=0)
 
+        # Save A2C specific parameters
+        self.normalize_advantage = normalize_advantage
+
         if _init_setup_model:
             self._setup_model()
-
-        # initialize MPC agent
+            
+        # Initialize MPC agent after setup_model
         self.version = version
+        self.pure_mpc_cfg = pure_mpc_cfg
         self.mpc_agent = PureMPC_Agent(
             env=self.env.envs[0],
             cfg=pure_mpc_cfg,
         )
     
     def _setup_model(self) -> None:
-        super()._setup_model()
-        self.mpc_agent = PureMPC_Agent(
-            env=self.env.envs[0],
-            cfg=self.pure_mpc_cfg,
-        )
+        super()._setup_model()  # Basic setup is sufficient
 
     def train(self) -> None:
         """

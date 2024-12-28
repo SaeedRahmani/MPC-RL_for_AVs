@@ -11,8 +11,10 @@ mpc_rl:
   algorithm: "a2c"  # or "ppo"
   a2c:
     v0:
+      action_space_dim: 1  # From old v0 config
       learning_rate: 7e-4
       n_steps: 5
+      total_timesteps: 128  # From old total_timesteps
       gamma: 0.99
       gae_lambda: 1.0
       ent_coef: 0.0
@@ -24,8 +26,10 @@ mpc_rl:
       sde_sample_freq: -1
       normalize_advantage: false
     v1:
+      action_space_dim: 6  # From old v0 config
       learning_rate: 7e-4
       n_steps: 5
+      total_timesteps: 256  # From old total_timesteps
       gamma: 0.99
       gae_lambda: 1.0
       ent_coef: 0.0
@@ -38,8 +42,10 @@ mpc_rl:
       normalize_advantage: false
   ppo:
     v0:
-      learning_rate: 3e-4
+      action_space_dim: 1  # From old v0 config
+      learning_rate: 0.0003  # From old lr
       n_steps: 2048
+      total_timesteps: 128  # From old total_timesteps
       batch_size: 64
       n_epochs: 10
       gamma: 0.99
@@ -47,8 +53,10 @@ mpc_rl:
       clip_range: 0.2
       normalize_advantage: true
     v1:
-      learning_rate: 3e-4
+      action_space_dim: 6  # From old v1 config
+      learning_rate: 0.000001  # From old lr
       n_steps: 2048
+      total_timesteps: 256  # From old total_timesteps
       batch_size: 64
       n_epochs: 10
       gamma: 0.99

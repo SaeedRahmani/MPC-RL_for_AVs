@@ -168,9 +168,9 @@ class BaseTrainer:
 
         :return: An instance of the specified reinforcement learning algorithm.
         """
-        algo_name = self.mpcrl_cfg["algo"]
-        assert algo_name in BaseTrainer.ALGO, f"Algorithm '{algo_name}' is not supported."
-        return BaseTrainer.ALGO[algo_name]
+        algorithm = self.mpcrl_cfg["algorithm"]  # Changed from "algo" to "algorithm"
+        assert algorithm in BaseTrainer.ALGO, f"Algorithm '{algorithm}' is not supported."
+        return BaseTrainer.ALGO[algorithm]
 
 
 class RefSpeedTrainer(BaseTrainer):
