@@ -16,7 +16,7 @@ def train_mpcrl(cfg):
     pure_mpc_agent_config = build_pure_mpc_agent_config(cfg)
     env = gym.make("intersection-v1", render_mode="rgb_array", config=gym_env_config)
     
-    trainer = RefSpeedTrainer(env, mpcrl_agent_config, pure_mpc_agent_config)
+    trainer = DynamicWeightTrainer(env, mpcrl_agent_config, pure_mpc_agent_config)
     trainer.learn()
     trainer.save(path=f"./weights/v1", file=f"test_{algorithm}_v1")
 
