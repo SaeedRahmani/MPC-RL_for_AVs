@@ -14,7 +14,7 @@ from stable_baselines3.common.policies import BasePolicy, ActorCriticPolicy
 from stable_baselines3.common.callbacks import BaseCallback
 
 from config.config import build_env_config, build_mpcrl_agent_config, build_pure_mpc_agent_config
-from trainers.utils import create_a2c_policy, create_ppo_policy, create_callback_func
+from trainers.trainer_utils import create_a2c_policy, create_ppo_policy, create_callback_func
 from agents.a2c_mpc import A2C_MPC
 from agents.ppo_mpc import PPO_MPC
 
