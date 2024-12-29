@@ -13,7 +13,7 @@ mpc_rl:
     v0:
       action_space_dim: 1  # From old v0 config
       learning_rate: 7e-4
-      n_steps: 5
+      n_steps: 64
       total_timesteps: 128  # From old total_timesteps
       gamma: 0.99
       gae_lambda: 1.0
@@ -29,7 +29,7 @@ mpc_rl:
     v1:
       action_space_dim: 6  # From old v0 config
       learning_rate: 7e-4
-      n_steps: 5
+      n_steps: 64
       total_timesteps: 256  # From old total_timesteps
       gamma: 0.99
       gae_lambda: 1.0
