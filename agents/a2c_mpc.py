@@ -58,7 +58,7 @@ class A2C_MPC(A2C):
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
         learning_rate: Union[float, Schedule] = 7e-4,
-        n_steps: int = 5,
+        n_steps: int = 64,
         gamma: float = 0.99,
         gae_lambda: float = 1.0,
         ent_coef: float = 0.0,
