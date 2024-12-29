@@ -18,7 +18,7 @@ def train_mpcrl(cfg):
     
     trainer = RefSpeedTrainer(env, mpcrl_agent_config, pure_mpc_agent_config)
     trainer.learn()
-    trainer.save(path=f"./weights/v0", file=f"test_{algorithm}_v0")
+    trainer.save(path=f"./weights", file=f"test_{algorithm}_v0")
     
 if __name__ == "__main__":
     train_mpcrl()

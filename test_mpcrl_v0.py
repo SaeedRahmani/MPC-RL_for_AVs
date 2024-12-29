@@ -23,7 +23,7 @@ def test_mpcrl(cfg):
     # trainer.learn()
     # trainer.save()
     trainer.load(
-        path=f"./weights/v0", file=f"test_{algorithm}_v0",
+        path=f"./weights/v0/test_{algorithm}_v0",
         mpcrl_cfg=mpcrl_agent_config, 
         version="v0", 
         pure_mpc_cfg=pure_mpc_agent_config,
