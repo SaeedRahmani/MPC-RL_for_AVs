@@ -55,9 +55,12 @@ def build_env_config(cfg) -> dict:
 #         **config,
 #         "algorithm": algorithm
 #     }
-def build_mpcrl_agent_config(cfg, version: str = "v0") -> dict:
-    algorithm = cfg["mpc_rl"]["algorithm"]
-    config = dict(cfg["mpc_rl"][algorithm][version])  # Convert to dict to avoid OmegaConf issues
+
+def build_mpcrl_agent_config(cfg, version: str = "v0", algorithm: str = "ppo") -> dict:
+    # Override algorithm in config
+    cfg.mpc_rl.algorithm = algorithm
+    print('algorithm in config.py:', algorithm)
+    config = dict(cfg["mpc_rl"][algorithm][version])
     config["algorithm"] = algorithm
     return config
 

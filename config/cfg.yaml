@@ -46,7 +46,7 @@ mpc_rl:
     v0:
       action_space_dim: 1  # From old v0 config
       learning_rate: 0.0003  # From old lr
-      n_steps: 2048
+      n_steps: 64
       total_timesteps: 128  # From old total_timesteps
       batch_size: 64
       n_epochs: 10
@@ -58,7 +58,7 @@ mpc_rl:
     v1:
       action_space_dim: 6  # From old v1 config
       learning_rate: 0.000001  # From old lr
-      n_steps: 2048
+      n_steps: 64
       total_timesteps: 256  # From old total_timesteps
       batch_size: 64
       n_epochs: 10
