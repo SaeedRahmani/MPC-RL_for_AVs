@@ -502,7 +502,7 @@ class PureMPC_Agent(Agent):
             current_speed = self.ego_vehicle.speed
             max_deceleration = - self.ego_vehicle.max_deceleration  # Should be positive
             required_deceleration = - (current_speed ** 2) / (2 * distance_to_conflict)
-            required_deceleration = max(required_deceleration, -max_deceleration)
+            required_deceleration = max(required_deceleration * 1.2, -max_deceleration)
             
             # Calculate speeds at each point
             for i in range(self.ego_index, earliest_conflict_index):
