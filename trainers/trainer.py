@@ -1,3 +1,4 @@
+import matplotlib.pyplot as plt 
 import hydra
 import numpy as np
 import torch
@@ -34,23 +35,104 @@ class BaseTrainer:
         :param env: The gym environment.
         :param cfg: Configuration dictionary containing algorithm type and action space dimensions.
         """
+        plt.close('all')
+
         self.env = env
         self.mpcrl_cfg = mpcrl_cfg
         self.pure_mpc_cfg = pure_mpc_cfg
         self.model = None
         self._setup_algorithm()
-        self._build_model()
+        
+        
+        # Initialize plotting data
+        self.rewards = []
+        self.losses = []
+        
+        # Create and setup figure
+        self.fig = plt.figure(figsize=(12, 8))
+        gs = self.fig.add_gridspec(2, 1, height_ratios=[1, 1], hspace=0.3)
+        
+        # Setup reward subplot
+        self.ax1 = self.fig.add_subplot(gs[0])
+        self.ax1.set_title('Episode Rewards', fontsize=12, pad=10)
+        self.ax1.set_xlabel('Episode')
+        self.ax1.set_ylabel('Reward Value')
+        self.reward_line, = self.ax1.plot([], [], 'b-', label='Reward')
+        self.ax1.grid(True)
+        self.ax1.legend()
 
-        self._build_model()
+        # Setup loss subplot
+        self.ax2 = self.fig.add_subplot(gs[1])
+        self.ax2.set_title('Training Loss', fontsize=12, pad=10)
+        self.ax2.set_xlabel('Training Step')
+        self.ax2.set_ylabel('Loss Value (log scale)')
+        self.ax2.set_yscale('log')
+        self.loss_line, = self.ax2.plot([], [], 'r-', label='Loss')
+        self.ax2.grid(True)
+        self.ax2.legend()
+
+        # Add main title
+        self.fig.suptitle('Training Progress', fontsize=14, y=0.95)
+        
+        # Show the figure
+        plt.tight_layout()
+        plt.show(block=False)
+
+    def _update_plots(self):
+        if len(self.rewards) > 0:
+            self.reward_line.set_data(range(len(self.rewards)), self.rewards)
+            self.ax1.relim()
+            self.ax1.autoscale_view()
+            
+        if len(self.losses) > 0:
+            self.loss_line.set_data(range(len(self.losses)), self.losses)
+            self.ax2.relim()
+            self.ax2.autoscale_view()
+        
+        self.fig.canvas.draw_idle()
+        self.fig.canvas.flush_events()
 
     def learn(self):
+        self._build_model()
+
+        def callback(_locals, _globals):
+            if _locals['dones']:
+                self.rewards.append(_locals['rewards'][0])
+            
+            if hasattr(_locals['self'], 'logger'):
+                if len(_locals['self'].logger.name_to_value) > 0:
+                    loss = _locals['self'].logger.name_to_value.get('train/loss', 0)
+                    if loss > 0:
+                        self.losses.append(loss)
+                    
+            if len(self.rewards) % 10 == 0:
+                self._update_plots()
+            return True
+
         self.model.learn(
-            total_timesteps=self.mpcrl_cfg["total_timesteps"], 
+            total_timesteps=self.mpcrl_cfg["total_timesteps"],
             progress_bar=self.mpcrl_cfg["show_progress_bar"],
+            callback=callback,
         )
+        
+        # Final plot update and display
+        self._update_plots()
+        plt.figure(self.fig.number)  # Ensure correct figure is active
+        plt.show(block=True)  # Keep plots open after training
+
+    # Old learn method before adding the plotting
+    # def learn(self):
+    #     self.model.learn(
+    #         total_timesteps=self.mpcrl_cfg["total_timesteps"], 
+    #         progress_bar=self.mpcrl_cfg["show_progress_bar"],
+    #     )
 
     def save(self, file, path):
-        self.model.save(f"./{path}/{self.version}/{file}")    
+        self.model.save(f"./{path}/{self.version}/{file}")
+        # Save figure without closing
+        plt.figure(self.fig.number)
+        plt.savefig(f"{path}/training_plots_{file}.png")
+        plt.show(block=True)  # Keep displaying after save
 
     def load(self, path, mpcrl_cfg, version, pure_mpc_cfg, env):
         self.model.load(path, mpcrl_cfg, version, pure_mpc_cfg, env)
