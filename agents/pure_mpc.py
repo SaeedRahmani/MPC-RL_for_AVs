@@ -6,7 +6,7 @@ import numpy as np
 from gymnasium import Env
 from shapely import LineString
 
-from .base import Agent
+from .base_agent import Agent
 from .utils import MPC_Action, Vehicle
 
 
