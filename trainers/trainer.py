@@ -75,6 +75,7 @@ class BaseTrainer:
         self.fig.suptitle('Training Progress', fontsize=14, y=0.95)
         
         # Show the figure
+        plt.ion()  # Enable interactive mode
         plt.tight_layout()
         plt.show(block=False)
 
