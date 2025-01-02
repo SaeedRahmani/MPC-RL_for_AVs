@@ -805,7 +805,7 @@ class PureMPC_Agent(Agent):
             if self.is_collide:
                 # print('collision', self.is_collide)
                 # print('ref v', ref_v)
-                speed_weight = 100
+                weights["weight_speed"] = 100 + weights["weight_speed"]
                 
             # State cost
             state_cost += (

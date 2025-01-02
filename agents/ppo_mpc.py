@@ -393,8 +393,8 @@ class PPO_MPC(PPO):
                 else:
                     # Otherwise, clip the actions to avoid out of bound error
                     # as we are sampling from an unbounded Gaussian distribution
-                    low = np.ones(6)
-                    high = np.full(6,100.0)
+                    low = np.ones(1)
+                    high = np.full(1,100.0)
                     clipped_actions = np.clip(actions, low, high)
                     
 

@@ -35,16 +35,16 @@ mpc_rl:
     n_steps: 64
     batch_size: 64
     n_epochs: 10
-    total_timesteps: 2048      
+    total_timesteps: 256      
     show_progress_bar: True
 
   v1: # dynamic weights version
-    action_space_dim: 6
+    action_space_dim: 1
     algo: ppo
     lr: 0.000001
     n_steps: 64
     batch_size: 64
     n_epochs: 10
-    total_timesteps: 256    
+    total_timesteps: 2048   
     show_progress_bar: True
 rl:
