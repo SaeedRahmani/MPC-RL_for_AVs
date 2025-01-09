@@ -6,8 +6,8 @@ import numpy as np
 from gymnasium import Env
 from shapely import LineString
 
-from .base_agent import Agent
-from .utils import MPC_Action, Vehicle
+from ..base_agent import Agent
+from ..utils import MPC_Action, Vehicle
 
 
 class PureMPC_Agent(Agent):

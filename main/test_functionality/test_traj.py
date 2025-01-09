@@ -4,7 +4,7 @@ import highway_env
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 
-from agents.pure_mpc import PureMPC_Agent
+from agents.archive.pure_mpc import PureMPC_Agent
 from config.config import build_env_config, build_pure_mpc_agent_config
 
 
