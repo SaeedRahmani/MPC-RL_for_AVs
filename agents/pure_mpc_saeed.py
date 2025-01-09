@@ -356,59 +356,134 @@ class PureMPC_Agent(Agent):
 
         # Pause briefly to create animation effect
         plt.pause(0.1)
+    
+    def predict_ego_future_positions(self, current_position, speed, heading, max_acceleration, dt, prediction_horizon, reference_speed):
+        """
+        Predict the future positions of the ego vehicle based on current speed, heading, and reference speed.
+
+        Args:
+            current_position (np.ndarray): Current position [x, y] of the ego vehicle.
+            speed (float): Current speed of the ego vehicle.
+            heading (float): Current heading angle (in radians).
+            max_acceleration (float): Maximum allowed acceleration.
+            dt (float): Time step for prediction.
+            prediction_horizon (int): Number of steps to predict into the future.
+            reference_speed (float): Desired reference speed for the ego vehicle.
+
+        Returns:
+            list: A list of future positions [x, y] at each time step.
+        """
+        future_positions = [current_position]
+        current_speed = speed
+
+        for _ in range(prediction_horizon):
+            # Adjust speed based on reference speed
+            if current_speed < reference_speed:
+                # Accelerate towards the reference speed
+                current_speed = min(current_speed + max_acceleration * dt, reference_speed)
+            
+            # Update position based on current speed and heading
+            next_position = future_positions[-1] + current_speed * dt * np.array([
+                np.cos(heading),
+                np.sin(heading)
+            ])
+            future_positions.append(next_position)
+
+        return future_positions
+
+    def predict_future_positions(self, current_position, speed, heading, dt, prediction_horizon):
+        """
+        Predict the future positions of a vehicle based on its current speed and heading.
+
+        Args:
+            current_position (np.ndarray): Current position [x, y] of the vehicle.
+            speed (float): Current speed of the vehicle.
+            heading (float): Heading angle of the vehicle in radians.
+            dt (float): Time step for prediction.
+            prediction_horizon (int): Number of steps to predict into the future.
+
+        Returns:
+            list: A list of future positions [x, y] at each time step.
+        """
+        future_positions = [current_position]
+        for _ in range(prediction_horizon):
+            next_position = future_positions[-1] + speed * dt * np.array([
+                np.cos(heading),
+                np.sin(heading)
+            ])
+            future_positions.append(next_position)
+        return future_positions
 
     def _check_collision(self):
-        """ Collision detection """
-
-        # Create a LineString for ego reference trajectory
-        ego_path_lineString = LineString(self.reference_trajectory)
-
-        # Get the index of closest point on the reference trajectory towards the ego vehicle
+        """Collision detection with dynamically predicted ego vehicle future positions."""
+        # Get the current position of the ego vehicle
         ego_location = np.array(self.ego_vehicle.position)
-        ego_index = np.argmin([
+
+        # Compute the index of the closest point on the reference trajectory
+        self.ego_index = np.argmin([
             np.linalg.norm(ego_location - np.array(trajectory_point)) 
             for trajectory_point in self.reference_trajectory
         ])
-        self.ego_index = ego_index
 
-        # Use self. for visualization (self.plot)
-        self.agent_current_locations = list()
-        self.agent_future_locations = list()
-        self.conflict_points = list()
-        self.conflict_index = list()
-        self.agent_collide = list()
+        # Predict ego future positions dynamically
+        ego_future_positions = self.predict_ego_future_positions(
+            current_position=self.ego_vehicle.position,
+            speed=self.ego_vehicle.speed,
+            heading=self.ego_vehicle.heading,
+            max_acceleration=self.ego_vehicle.max_acceleration,
+            dt=self.dt,
+            prediction_horizon=10,  # Adjust as needed
+            reference_speed=self.reference_states[self.ego_index, 2]  # Desired speed from the reference trajectory
+        )
+
+        # Create a LineString for the predicted ego trajectory
+        ego_path_lineString = LineString(ego_future_positions)
+
+        # Initialize storage for visualization and conflict tracking
+        self.agent_current_locations = []
+        self.agent_future_locations = []
+        self.conflict_points = []
+        self.conflict_index = []
+        self.agent_collide = []
+
+        # Define prediction horizon and time step
+        prediction_horizon = 100  # Adjust as needed
+        dt = self.dt  # Time step from your configuration
 
         for _, agent_veh in enumerate(self.agent_vehicles):
-            # store the current location of agent vehicle
+            # Store the current location of the agent vehicle
             agent_current_location = np.array(agent_veh.position)
             self.agent_current_locations.append(agent_current_location)
 
-            # store the future location of agent vehicle
-            agent_future_location = agent_current_location + self.detection_dist * np.array([
-                    np.cos(agent_veh.heading), np.sin(agent_veh.heading)])
-            self.agent_future_locations.append(agent_future_location)
-            
-            # create a LineString object for the path between current and future locations
-            agent_path_lineString = LineString([agent_current_location, agent_future_location])
+            # Predict future positions for other vehicles
+            future_positions = self.predict_future_positions(
+                current_position=agent_current_location,
+                speed=agent_veh.speed,
+                heading=agent_veh.heading,
+                dt=dt,
+                prediction_horizon=prediction_horizon
+            )
+            self.agent_future_locations.append(future_positions)
 
-            # check whether there is an intersection
+            # Create a LineString for the predicted path of the agent vehicle
+            agent_path_lineString = LineString(future_positions)
+
+            # Check for intersections with the ego vehicle's path
             intersection = ego_path_lineString.intersection(agent_path_lineString)
             if not intersection.is_empty:
                 if intersection.geom_type == 'Point':
                     conflict_location = np.array((intersection.x, intersection.y))
                     agent_index = np.argmin([np.linalg.norm(conflict_location - point)
-                        for point in self.reference_trajectory])
-                    if ego_index < agent_index:
+                                            for point in self.reference_trajectory])
+                    if self.ego_index < agent_index:
                         agent_dist = np.linalg.norm(agent_current_location - conflict_location)
                         agent_speed = agent_veh.speed
                         agent_eta = agent_dist / agent_speed
 
-                        ego_dist = LineString(self.reference_trajectory[ego_index: agent_index+1,:]).length
-                        # ego_speed = self.ego_vehicle.speed
-                        ego_eta = self.calculate_ego_eta(ego_dist, ego_index, self.last_acc, max_speed=10) 
+                        ego_dist = LineString(self.reference_trajectory[self.ego_index: agent_index+1, :]).length
+                        ego_eta = self.calculate_ego_eta(ego_dist, self.ego_index, self.last_acc, max_speed=10)
 
                         if np.abs(ego_eta - agent_eta) < self.ttc_threshold:
-                            # print(np.abs(ego_eta - agent_eta), agent_eta)
                             self.agent_collide.append(True)
                             self.conflict_points.append((intersection.x, intersection.y))
                             self.conflict_index.append(agent_index)
@@ -424,7 +499,8 @@ class PureMPC_Agent(Agent):
             else:
                 self.conflict_points.append(None)
                 self.agent_collide.append(False)
-        
+
+        # Check if there is any collision
         self.is_collide = np.any(self.agent_collide)
         # return self.is_collide
 
