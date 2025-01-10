@@ -32,11 +32,12 @@ def test_pure_mpc_agent(cfg):
         # getting action from agent
         action = mpc_agent.predict(observation, False)
         mpc_agent.plot()
+        mpc_agent.visualize_predictions()
         # print(np.array([action.acceleration, action.steer]))
         observation, reward, done, truncated, info = env.step([action.acceleration/5, action.steer/(np.pi/3)])
         # observation, reward, done, truncated, info = env.step([action.acceleration, action.steer])
         # print('speed', observation[0,3])
-        print('obs', observation[0][0:8])
+        # print('obs', observation[0][0:8])
         # rendering animation
         env.render()
         
