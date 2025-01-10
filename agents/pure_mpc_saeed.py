@@ -35,6 +35,9 @@ class PureMPC_Agent(Agent):
         """
         super().__init__(env, cfg)
 
+        self.collision_memory = 0  # Add collision memory counter
+        self.collision_memory_steps = 10  # How many steps to remember collision
+
         # Load collision detection parameters from config
         # self.detection_dist = self.config.get("detection_distance", 100)
         self.ttc_threshold = self.config.get("ttc_threshold", 3)
@@ -649,6 +652,13 @@ class PureMPC_Agent(Agent):
 
         # Check if there is any collision
         self.is_collide = np.any(self.agent_collide)
+    
+        # Update collision memory
+        if self.is_collide:
+            self.collision_memory = self.collision_memory_steps
+        elif self.collision_memory > 0:
+            self.collision_memory -= 1
+            self.is_collide = True  # Keep treating it as collision for a few more steps
 
     def update_reference_states(self, speed_override=None, speed_overide_from_RL=None) -> np.ndarray:
         """Update reference states with improved safety checks and bounds."""
