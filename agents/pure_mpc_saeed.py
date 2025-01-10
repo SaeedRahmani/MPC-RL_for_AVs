@@ -301,61 +301,6 @@ class PureMPC_Agent(Agent):
         mpc_action = MPC_Action(acceleration=u_opt[0, 0], steer=u_opt[0, 1])
         return mpc_action
     
-    def plot(self):
-        """ Visualize the MPC solving process """
-        x_range = self.config.get("render_axis_range", 50)
-        
-        # Clear the content of the last frame
-        self.ax.clear()
-        
-        # Set limits and invert y-axis
-        self.ax.set_xlim([-x_range, x_range])
-        self.ax.set_ylim([-x_range, x_range])  # y_range is set the same as x_range
-        self.ax.invert_yaxis()
-        self.ax.grid(True)
-
-        # Set labels and title
-        self.ax.set_xlabel("X (meter)")
-        self.ax.set_ylabel("Y (meter)")
-        self.ax.set_title("Pure MPC Agent")
-
-        # Plot reference trajectory in grey
-        self.ax.scatter(
-            x=self.reference_trajectory[:, 0], 
-            y=self.reference_trajectory[:, 1], 
-            color='grey', 
-            s=1,
-        )
-        
-        # Plot the ego vehicle's location in blue
-        ego_x, ego_y = self.ego_vehicle.position
-        self.ax.scatter(
-            x=ego_x, 
-            y=ego_y, 
-            color='blue', 
-            s=5
-        )
-
-        # Plot the agent vehicles' locations in red
-        for agent_vehicle in self.agent_vehicles:
-            agent_x, agent_y = agent_vehicle.position
-            self.ax.scatter(
-                x=agent_x, 
-                y=agent_y, 
-                color='red', 
-                s=5
-            )
-
-        # Plot the potential collisions
-        # lineplot with x-markers at each end
-        for current_loc, conflict_loc in zip(self.agent_current_locations, self.conflict_points):
-            if conflict_loc is not None:
-                xs = [current_loc[0], conflict_loc[0]]
-                ys = [current_loc[1], conflict_loc[1]]
-                self.ax.plot(xs, ys, 'x-', markersize=5)  # Use markersize for clarity
-
-        # Pause briefly to create animation effect
-        plt.pause(0.1)
 
     def visualize_predictions(self):
         """Visualize predictions for debugging purposes."""
@@ -708,6 +653,10 @@ class PureMPC_Agent(Agent):
     def update_reference_states(self, speed_override=None, speed_overide_from_RL=None) -> np.ndarray:
         """Update reference states with improved safety checks and bounds."""
         DEFAULT_MAX_SPEED = 30.0
+        SAFETY_BUFFER_POINTS = 5  # Number of points before conflict to reach zero speed
+        
+        # Initialize stop_point as None (will be used in plotting)
+        self.stop_point = None
         
         # Handle RL speed override with bounds checking
         if speed_overide_from_RL is not None:
@@ -730,19 +679,105 @@ class PureMPC_Agent(Agent):
         # Find earliest conflict point
         earliest_conflict_index = min(valid_conflict_indices)
         
-        # Calculate number of points between ego and conflict
-        points_to_conflict = earliest_conflict_index - self.ego_index
+        # Add safety buffer by moving the stopping point earlier
+        stop_index = max(self.ego_index + 1, earliest_conflict_index - SAFETY_BUFFER_POINTS)
         
-        if points_to_conflict > 0:
+        # Calculate number of points between ego and stop point
+        points_to_stop = stop_index - self.ego_index
+        
+        if points_to_stop > 0:
             # Create linear decrease from current speed to zero
             current_speed = self.ego_vehicle.speed
-            deceleration_profile = np.linspace(current_speed, 0, points_to_conflict)
-            print('deceleration', deceleration_profile)
+            deceleration_profile = np.linspace(current_speed, 0, points_to_stop)
             
-            # Apply the deceleration profile
-            new_reference_states[self.ego_index:earliest_conflict_index, 2] = deceleration_profile
+            # Apply the deceleration profile up to the stop point
+            new_reference_states[self.ego_index:stop_index, 2] = deceleration_profile
             
-            # Set speed to zero at and after conflict point
-            new_reference_states[earliest_conflict_index:, 2] = 0.0
+            # Set speed to zero from stop point onwards
+            new_reference_states[stop_index:, 2] = 0.0
+            
+            # Store the stop point coordinates for plotting
+            self.stop_point = self.reference_trajectory[stop_index]
 
         return new_reference_states
+
+    def plot(self):
+        """ Visualize the MPC solving process """
+        x_range = self.config.get("render_axis_range", 50)
+        
+        # Clear the content of the last frame
+        self.ax.clear()
+        
+        # Set limits and invert y-axis
+        self.ax.set_xlim([-x_range, x_range])
+        self.ax.set_ylim([-x_range, x_range])  # y_range is set the same as x_range
+        self.ax.invert_yaxis()
+        self.ax.grid(True)
+
+        # Set labels and title
+        self.ax.set_xlabel("X (meter)")
+        self.ax.set_ylabel("Y (meter)")
+        self.ax.set_title("Pure MPC Agent")
+
+        # Plot reference trajectory in grey
+        self.ax.scatter(
+            x=self.reference_trajectory[:, 0], 
+            y=self.reference_trajectory[:, 1], 
+            color='grey', 
+            s=1,
+        )
+        
+        # Plot the ego vehicle's location in blue
+        ego_x, ego_y = self.ego_vehicle.position
+        self.ax.scatter(
+            x=ego_x, 
+            y=ego_y, 
+            color='blue', 
+            s=5
+        )
+
+        # Plot the agent vehicles' locations in red
+        for agent_vehicle in self.agent_vehicles:
+            agent_x, agent_y = agent_vehicle.position
+            self.ax.scatter(
+                x=agent_x, 
+                y=agent_y, 
+                color='red', 
+                s=5
+            )
+
+        # Plot the potential collisions
+        for current_loc, conflict_loc in zip(self.agent_current_locations, self.conflict_points):
+            if conflict_loc is not None:
+                xs = [current_loc[0], conflict_loc[0]]
+                ys = [current_loc[1], conflict_loc[1]]
+                self.ax.plot(xs, ys, 'x-', markersize=5)  # Use markersize for clarity
+
+        # Plot the stop point if it exists
+        if hasattr(self, 'stop_point') and self.stop_point is not None:
+            self.ax.scatter(
+                self.stop_point[0],
+                self.stop_point[1],
+                color='black',
+                s=20,
+                marker='s',
+                # label='Stop point',
+                zorder=5  # Make sure it's drawn on top
+            )
+            # Add a text annotation near the stop point
+            self.ax.annotate(
+                'STOP',
+                (self.stop_point[0], self.stop_point[1]),
+                xytext=(10, 10),
+                textcoords='offset points',
+                color='yellow',
+                fontweight='bold',
+                bbox=dict(facecolor='black', alpha=0.3)
+            )
+
+        # Add legend if stop point exists
+        if hasattr(self, 'stop_point') and self.stop_point is not None:
+            self.ax.legend()
+
+        # Pause briefly to create animation effect
+        plt.pause(0.1)
