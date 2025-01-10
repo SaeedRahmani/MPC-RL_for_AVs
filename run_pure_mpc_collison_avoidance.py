@@ -36,7 +36,7 @@ def test_pure_mpc_agent(cfg):
         observation, reward, done, truncated, info = env.step([action.acceleration/5, action.steer/(np.pi/3)])
         # observation, reward, done, truncated, info = env.step([action.acceleration, action.steer])
         # print('speed', observation[0,3])
-        print(observation[0][3:5])
+        print('obs', observation[0][0:8])
         # rendering animation
         env.render()
         
