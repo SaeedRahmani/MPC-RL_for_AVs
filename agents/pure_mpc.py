@@ -78,7 +78,8 @@ class PureMPC_Agent(Agent):
         manual_collision_avoidance = True
         # MPC parameters
         N = self.horizon
-        
+        print('weights_from_RL', weights_from_RL)
+        print('ref_speed_from_RL', ref_speed_from_RL)
         # Define symbolic variables for states and controls
         n_states = 4    # [x, y, theta, v]
         n_controls = 2  # [acceleration, steer_angle]

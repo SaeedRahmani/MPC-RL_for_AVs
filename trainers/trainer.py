@@ -169,7 +169,7 @@ class BaseTrainer:
         self.algo = PPO_MPC if algorithm == "ppo" else A2C_MPC
 
   
-    def _build_model(self, version="v1"):
+    def _build_model(self):
         # Determine algorithm and build policy
         self.algo: BaseAlgorithm = self._specify_algo()
         algorithm = self.mpcrl_cfg["algorithm"]
@@ -188,7 +188,7 @@ class BaseTrainer:
             "policy": policy,
             "env": self.env,
             "mpcrl_cfg": self.mpcrl_cfg,
-            "version": version,
+            "version": self.version,
             "pure_mpc_cfg": self.pure_mpc_cfg,
             "learning_rate": self.mpcrl_cfg["learning_rate"],
             "n_steps": self.mpcrl_cfg["n_steps"],

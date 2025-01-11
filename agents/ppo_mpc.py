@@ -179,11 +179,14 @@ class PPO_MPC(PPO):
         self.normalize_advantage = normalize_advantage
         self.target_kl = target_kl
 
+
         if _init_setup_model:
             self._setup_model()
 
         # initialize MPC agent
         self.version = version
+        print("version in ppo_mpc init", version)
+
         if use_collision_avoidance:
             from agents.pure_mpc import PureMPC_Agent
         else:
