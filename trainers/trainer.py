@@ -41,7 +41,10 @@ class BaseTrainer:
         self.mpcrl_cfg = mpcrl_cfg
         self.pure_mpc_cfg = pure_mpc_cfg
         self.model = None
-        self._setup_algorithm()
+
+        # moved to RefSpeedTrainer and DynamicWeightTrainer
+        # self._setup_algorithm()
+        # self._build_model()
         
         
         # Initialize plotting data
@@ -225,33 +228,6 @@ class BaseTrainer:
         # Replace the action dimension in the rollout buffer, if applicable
         if hasattr(self.model, "rollout_buffer") and self.model.rollout_buffer is not None:
             self.model.rollout_buffer.action_dim = action_dim
-
-    
-    # def _build_model(self, version="v1"):
-    #     # Build the policy (neural network) with modified action_dim
-    #     self.algo: BaseAlgorithm = self._specify_algo()
-
-    #     # Create the model with a custom policy
-    #     self.model = self.algo(
-    #         policy=create_a2c_policy(self.mpcrl_cfg["action_space_dim"]),
-    #         env=self.env,
-    #         mpcrl_cfg=self.mpcrl_cfg,
-    #         version=version,
-    #         pure_mpc_cfg=self.pure_mpc_cfg,
-    #         learning_rate=self.mpcrl_cfg["action_space_dim"],
-    #         n_steps=self.mpcrl_cfg["n_steps"],
-    #         batch_size=self.mpcrl_cfg["batch_size"],
-    #         n_epochs=self.mpcrl_cfg["n_epochs"],
-    #     )
-
-    #     # replace the action_space
-    #     self.model.action_space = Box(
-    #             low=-1 * np.ones(self.mpcrl_cfg["action_space_dim"]),
-    #             high=np.ones(self.mpcrl_cfg["action_space_dim"]),
-    #             shape=(self.mpcrl_cfg["action_space_dim"],),
-    #             dtype=np.float32,
-    #         )
-    #     self.model.rollout_buffer.action_dim = self.mpcrl_cfg["action_space_dim"]
         
     def _specify_algo(self) -> BaseAlgorithm:
         """
@@ -268,17 +244,19 @@ class RefSpeedTrainer(BaseTrainer):
     def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict):
         super(RefSpeedTrainer, self).__init__(env, mpcrl_cfg, pure_mpc_cfg)
         self.version = "v0"
-        
-    def _build_model(self, version="v0"):
-        return super()._build_model(version)
+        self._setup_algorithm()
+        self._build_model()
+    # def _build_model(self, version="v0"):
+    #     return super()._build_model(version)
 
 class DynamicWeightTrainer(BaseTrainer):
     def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict):
         super(DynamicWeightTrainer, self).__init__(env, mpcrl_cfg, pure_mpc_cfg)
         self.version = "v1"
-        
-    def _build_model(self, version="v1"):
-        return super()._build_model(version)
+        self._setup_algorithm()
+        self._build_model()
+    # def _build_model(self, version="v1"):
+    #     return super()._build_model(version)
 
 @hydra.main(config_name="cfg", config_path="../config", version_base="1.3")
 def test_trainer(cfg):

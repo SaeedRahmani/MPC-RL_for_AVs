@@ -98,7 +98,7 @@ class PPO_MPC(PPO):
         pure_mpc_cfg: Dict,
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
-        use_collision_avoidance: bool = False,  # New parameter
+        use_collision_avoidance: bool = True,  # New parameter to choose between MPC versions
         learning_rate: Union[float, Schedule] = 3e-4,
         n_steps: int = 2048,
         batch_size: int = 64,
@@ -185,7 +185,7 @@ class PPO_MPC(PPO):
         # initialize MPC agent
         self.version = version
         if use_collision_avoidance:
-            from agents.pure_mpc_saeed import PureMPC_Agent
+            from agents.pure_mpc import PureMPC_Agent
         else:
             from agents.pure_mpc_no_collision import PureMPC_Agent  # New MPC version
 
