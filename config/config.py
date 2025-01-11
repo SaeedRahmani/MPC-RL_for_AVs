@@ -64,5 +64,15 @@ def build_mpcrl_agent_config(cfg, version: str = "v0", algorithm: str = "ppo") -
     config["algorithm"] = algorithm
     return config
 
-def build_pure_mpc_agent_config(cfg) -> dict:
-    return cfg["pure_mpc"]
+def build_pure_mpc_agent_config(cfg, use_collision_avoidance: bool = True) -> dict:
+    """Build MPC agent configuration with option to choose version.
+    
+    Args:
+        cfg: The main config dictionary
+        use_collision_avoidance: If True, use original MPC with collision avoidance.
+                                If False, use simplified MPC without collision avoidance.
+    """
+    if use_collision_avoidance:
+        return cfg["pure_mpc"]
+    else:
+        return cfg["pure_mpc_no_collision"]

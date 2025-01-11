@@ -88,6 +88,23 @@ pure_mpc:
   weight_distance: 10
   weight_collision: 1
 
+# New MPC without collision avoidance
+pure_mpc_no_collision:
+  # Core MPC parameters 
+  horizon: 16
+  dt: 0.1
+  
+  # Render options
+  render: true
+  render_window_size: 6
+  render_axis_range: 50
+
+  # Cost weights - only tracking and control weights
+  weight_state: 10      # Weight for state tracking
+  weight_control: 1     # Weight for control effort
+  weight_input_diff: 1  # Weight for smooth control changes
+  weight_final_state: 1 # Weight for terminal state
+
 # mpc_rl:
 
 #   v0: # reference speed version

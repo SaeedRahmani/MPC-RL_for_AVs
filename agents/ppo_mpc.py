@@ -98,6 +98,7 @@ class PPO_MPC(PPO):
         pure_mpc_cfg: Dict,
         policy: Union[str, Type[ActorCriticPolicy]],
         env: Union[GymEnv, str],
+        use_collision_avoidance: bool = False,  # New parameter
         learning_rate: Union[float, Schedule] = 3e-4,
         n_steps: int = 2048,
         batch_size: int = 64,
@@ -183,6 +184,11 @@ class PPO_MPC(PPO):
 
         # initialize MPC agent
         self.version = version
+        if use_collision_avoidance:
+            from agents.pure_mpc_saeed import PureMPC_Agent
+        else:
+            from agents.pure_mpc_no_collision import PureMPC_Agent  # New MPC version
+
         self.mpc_agent = PureMPC_Agent(
             env=self.env.envs[0],
             cfg=pure_mpc_cfg,
