@@ -24,7 +24,7 @@ from stable_baselines3.common.utils import (
     set_random_seed,
     update_learning_rate,
 )
-from agents.pure_mpc_saeed import PureMPC_Agent
+from agents.pure_mpc import PureMPC_Agent
 
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
 

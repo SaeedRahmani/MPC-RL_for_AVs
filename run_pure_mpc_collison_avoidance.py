@@ -3,7 +3,7 @@ import highway_env
 import hydra
 import numpy as np
 
-from agents.pure_mpc_saeed import PureMPC_Agent
+from agents.pure_mpc import PureMPC_Agent
 from config.config import build_env_config, build_pure_mpc_agent_config
 
 np.set_printoptions(suppress=True)
@@ -31,8 +31,8 @@ def test_pure_mpc_agent(cfg):
     for i in range(100):
         # getting action from agent
         action = mpc_agent.predict(observation, False)
-        mpc_agent.plot()
-        mpc_agent.visualize_predictions()
+        # mpc_agent.plot()
+        # mpc_agent.visualize_predictions()
         # print(np.array([action.acceleration, action.steer]))
         observation, reward, done, truncated, info = env.step([action.acceleration/5, action.steer/(np.pi/3)])
         # observation, reward, done, truncated, info = env.step([action.acceleration, action.steer])
