@@ -12,7 +12,7 @@ from stable_baselines3 import DQN
 
 from stable_baselines3.common.base_class import BaseAlgorithm
 from stable_baselines3.common.policies import BasePolicy, ActorCriticPolicy
-from stable_baselines3.common.callbacks import BaseCallback
+from stable_baselines3.common.callbacks import BaseCallback,  CallbackList
 
 from config.config import build_env_config, build_mpcrl_agent_config, build_pure_mpc_agent_config
 from trainers.trainer_utils import create_a2c_policy, create_ppo_policy, create_callback_func
@@ -99,7 +99,15 @@ class BaseTrainer:
     def learn(self):
         self._build_model()
 
-        def callback(_locals, _globals):
+        # Initialize the save callback
+        save_callback = SaveModelCallback(
+            save_path="./saved_models",
+            save_freq=1024,
+            verbose=1
+        )
+
+        # Define the plotting and logging callback
+        def plotting_callback(_locals, _globals):
             if _locals['dones']:
                 self.rewards.append(_locals['rewards'][0])
             
@@ -113,16 +121,21 @@ class BaseTrainer:
                 self._update_plots()
             return True
 
+        # Combine both callbacks into a CallbackList
+        combined_callback = CallbackList([save_callback])
+
         self.model.learn(
             total_timesteps=self.mpcrl_cfg["total_timesteps"],
             progress_bar=self.mpcrl_cfg["show_progress_bar"],
-            callback=callback,
+            callback=combined_callback,
         )
-        
+
         # Final plot update and display
         self._update_plots()
         plt.figure(self.fig.number)  # Ensure correct figure is active
         plt.show(block=True)  # Keep plots open after training
+
+
 
     # Old learn method before adding the plotting
     # def learn(self):
@@ -261,6 +274,20 @@ class DynamicWeightTrainer(BaseTrainer):
         self._build_model()
     # def _build_model(self, version="v1"):
     #     return super()._build_model(version)
+
+class SaveModelCallback(BaseCallback):
+    def __init__(self, save_path, save_freq, verbose=0):
+        super(SaveModelCallback, self).__init__(verbose)
+        self.save_path = save_path
+        self.save_freq = save_freq
+
+    def _on_step(self) -> bool:
+        if self.n_calls % self.save_freq == 0:
+            save_file = f"{self.save_path}/model_step_{self.n_calls}"
+            self.model.save(save_file)
+            if self.verbose > 0:
+                print(f"Model saved to {save_file}")
+        return True
 
 @hydra.main(config_name="cfg", config_path="../config", version_base="1.3")
 def test_trainer(cfg):
