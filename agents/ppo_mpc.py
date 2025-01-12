@@ -187,6 +187,8 @@ class PPO_MPC(PPO):
         self.version = version
         print("version in ppo_mpc init", version)
 
+        use_collision_avoidance = False
+
         if use_collision_avoidance:
             from agents.pure_mpc import PureMPC_Agent
         else:
@@ -424,6 +426,7 @@ class PPO_MPC(PPO):
             mpc_action = mpc_action.reshape((1,2))
 
             new_obs, rewards, dones, infos = env.step(mpc_action)
+            print('rewards:', rewards)
 
             self.num_timesteps += env.num_envs
 

@@ -147,6 +147,8 @@ class BaseTrainer:
         if isinstance(obs, np.ndarray):
             obs_tensor = torch.Tensor(obs).flatten().unsqueeze(dim=0)
         RL_output, _, _ = self.model.policy(obs_tensor)
+
+
         if self.model.version == "v0":
             mpc_action = self.model.mpc_agent.predict(
                 obs=obs,
@@ -154,6 +156,8 @@ class BaseTrainer:
                 weights_from_RL=None,
                 ref_speed=RL_output.detach().numpy(),
             )
+            # Print the reference speed
+            print("Reference Speed from RL Agent:", RL_output.detach().numpy())
         else:
             mpc_action = self.model.mpc_agent.predict(
                 obs=obs,

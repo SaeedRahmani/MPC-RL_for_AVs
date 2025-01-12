@@ -34,7 +34,9 @@ def test_mpcrl(cfg):
     
     for i in range(100):
         action = trainer.predict(observation, False)
+        print('MPC acceleration:', action.acceleration)
         observation, reward, done, truncated, info = env.step([action.acceleration/5, action.steer/(np.pi/3)])
+        print('reward:', reward)
         env.render()
         
 if __name__ == "__main__":

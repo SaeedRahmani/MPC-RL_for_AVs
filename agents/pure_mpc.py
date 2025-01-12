@@ -674,9 +674,11 @@ class PureMPC_Agent(Agent):
             new_ref = np.copy(self.reference_states)
             safe_speed = np.clip(speed_overide_from_RL[0,0], 0, DEFAULT_MAX_SPEED)
             new_ref[:, 2] = safe_speed
+            print('I am using RL speed override')
             return new_ref
 
         if not self.is_collide:
+            print('I am using no collision avoidance')
             return np.copy(self.reference_states)
 
         new_reference_states = np.copy(self.reference_states)
@@ -685,6 +687,7 @@ class PureMPC_Agent(Agent):
         valid_conflict_indices = [idx for idx in self.conflict_index if idx is not None]
         
         if not valid_conflict_indices:
+            print('I am using no collision avoidance')
             return new_reference_states
             
         # Find earliest conflict point
@@ -709,7 +712,7 @@ class PureMPC_Agent(Agent):
             
             # Store the stop point coordinates for plotting
             self.stop_point = self.reference_trajectory[stop_index]
-
+            print('I am using manual collision avoidance')
         return new_reference_states
 
     def plot(self):
