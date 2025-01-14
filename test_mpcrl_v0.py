@@ -21,8 +21,10 @@ def test_mpcrl(cfg):
     env = gym.make("intersection-v1", render_mode="human", config=gym_env_config)
 
     trainer = RefSpeedTrainer(env, mpcrl_agent_config, pure_mpc_agent_config)
-    # trainer.learn()
-    # trainer.save()
+#     # trainer.learn()
+#     # trainer.save()
+
+
     # Find the latest saved model
     save_dir = "./saved_models"
     model_files = sorted(glob.glob(f"{save_dir}/*"), key=os.path.getmtime, reverse=True)
@@ -44,7 +46,7 @@ def test_mpcrl(cfg):
     
     observation, _ = env.reset()
     
-    for i in range(100):
+    for i in range(200):
         action = trainer.predict(observation, False)
         print('MPC acceleration:', action.acceleration)
         observation, reward, done, truncated, info = env.step([action.acceleration/5, action.steer/(np.pi/3)])
@@ -65,7 +67,7 @@ if __name__ == "__main__":
     
 #     observation, _ = env.reset()
     
-#     for i in range(100):
+#     for i in range(150):
 #         action = trainer.predict(observation, False)
 #         print('MPC acceleration:', action.acceleration)
 #         observation, reward, done, truncated, info = env.step([action.acceleration/5, action.steer/(np.pi/3)])

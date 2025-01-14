@@ -28,10 +28,10 @@ def test_pure_mpc_agent(cfg):
     #     for _, road in roads.items():
     #         print(road[0].start, road[0].end)
 
-    for i in range(100):
+    for i in range(150):
         # getting action from agent
         action = mpc_agent.predict(observation, False)
-        # mpc_agent.plot()
+        mpc_agent.plot()
         # mpc_agent.visualize_predictions()
         # print(np.array([action.acceleration, action.steer]))
         observation, reward, done, truncated, info = env.step([action.acceleration/5, action.steer/(np.pi/3)])

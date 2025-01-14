@@ -36,7 +36,11 @@ class PureMPC_Agent(Agent):
         super().__init__(env, cfg)
 
         self.collision_memory = 0  # Add collision memory counter
-        self.collision_memory_steps = 10  # How many steps to remember collision
+        self.collision_memory_steps = 40  # How many steps to remember collision
+
+        self.memorized_conflict_points = None
+        self.memorized_conflict_indices = None
+        self.last_valid_stop_point = None
 
         # Load collision detection parameters from config
         # self.detection_dist = self.config.get("detection_distance", 100)
@@ -536,22 +540,25 @@ class PureMPC_Agent(Agent):
         return future_positions
 
     def _check_collision(self):
-        """
-        Collision detection based on trajectory intersection and time threshold.
-        """
+        """Modified collision detection to preserve collision state during memory period"""
         PREDICTION_HORIZON = 30
-        TIME_THRESHOLD = 30  # time steps (equivalent to TIME_THRESHOLD * dt seconds)
+        TIME_THRESHOLD = 30
         
-        # Get the current position of the ego vehicle
-        ego_location = np.array(self.ego_vehicle.position)
+        # If we're in memory period and have stored collision points, use those
+        if self.collision_memory > 0 and self.memorized_conflict_points is not None:
+            self.conflict_points = self.memorized_conflict_points
+            self.conflict_index = self.memorized_conflict_indices
+            self.is_collide = True
+            self.collision_memory -= 1
+            return
 
-        # Find closest point on reference trajectory
+        # Normal collision detection logic
+        ego_location = np.array(self.ego_vehicle.position)
         self.ego_index = np.argmin([
             np.linalg.norm(ego_location - np.array(trajectory_point)) 
             for trajectory_point in self.reference_trajectory
         ])
 
-        # Predict ego future positions
         ego_future_positions = self.predict_ego_future_positions(
             current_position=self.ego_vehicle.position,
             speed=self.ego_vehicle.speed,
@@ -562,10 +569,8 @@ class PureMPC_Agent(Agent):
             reference_speed=self.reference_states[self.ego_index, 2]
         )
 
-        # Create LineString for ego trajectory
         ego_path = LineString(ego_future_positions)
 
-        # Initialize storage for visualization and conflict tracking
         self.agent_current_locations = []
         self.agent_future_locations = []
         self.conflict_points = []
@@ -573,11 +578,9 @@ class PureMPC_Agent(Agent):
         self.agent_collide = []
 
         for agent_veh in self.agent_vehicles:
-            # Store current location
             agent_current_location = np.array(agent_veh.position)
             self.agent_current_locations.append(agent_current_location)
 
-            # Predict future positions
             agent_future_positions = self.predict_future_positions(
                 current_position=agent_current_location,
                 speed=agent_veh.speed,
@@ -587,10 +590,7 @@ class PureMPC_Agent(Agent):
             )
             self.agent_future_locations.append(agent_future_positions)
 
-            # Create LineString for agent path
             agent_path = LineString(agent_future_positions)
-
-            # Check for intersection
             intersection = ego_path.intersection(agent_path)
             
             collision_detected = False
@@ -598,34 +598,28 @@ class PureMPC_Agent(Agent):
             conflict_idx = None
 
             if not intersection.is_empty:
-                # Extract intersection points based on geometry type
                 intersection_points = []
                 
                 if intersection.geom_type == 'Point':
                     intersection_points.append((intersection.x, intersection.y))
                 elif intersection.geom_type == 'LineString':
-                    # Take midpoint of the line
                     coords = list(intersection.coords)
                     if coords:
                         mid_idx = len(coords) // 2
                         intersection_points.append(coords[mid_idx])
                 elif intersection.geom_type == 'MultiPoint':
-                    # Handle multiple intersection points
                     for point in intersection.geoms:
                         intersection_points.append((point.x, point.y))
                 elif intersection.geom_type == 'MultiLineString':
-                    # Handle multiple line intersections
                     for line in intersection.geoms:
                         coords = list(line.coords)
                         if coords:
                             mid_idx = len(coords) // 2
                             intersection_points.append(coords[mid_idx])
                 
-                # Check each intersection point
                 for int_point in intersection_points:
                     intersection_point = np.array(int_point)
                     
-                    # Find closest points in both trajectories to intersection
                     ego_times = [i for i in range(len(ego_future_positions))]
                     agent_times = [i for i in range(len(agent_future_positions))]
                     
@@ -637,16 +631,13 @@ class PureMPC_Agent(Agent):
                     ego_time = ego_times[np.argmin(ego_dists)]
                     agent_time = agent_times[np.argmin(agent_dists)]
                     
-                    # Check if vehicles are at intersection point within time threshold
                     if abs(ego_time - agent_time) < TIME_THRESHOLD:
                         collision_detected = True
-                        # Find corresponding reference trajectory index
                         ref_traj_dists = [np.linalg.norm(np.array(pos) - intersection_point) 
                                         for pos in self.reference_trajectory]
                         conflict_idx = np.argmin(ref_traj_dists)
-                        break  # Stop checking other points if collision is detected
-            
-            # Store results
+                        break
+
             self.agent_collide.append(collision_detected)
             self.conflict_points.append(intersection_point if collision_detected else None)
             self.conflict_index.append(conflict_idx if collision_detected else None)
@@ -654,65 +645,66 @@ class PureMPC_Agent(Agent):
         # Check if there is any collision
         self.is_collide = np.any(self.agent_collide)
     
-        # Update collision memory
+        # Update collision memory and store collision state
         if self.is_collide:
             self.collision_memory = self.collision_memory_steps
+            # Store the current collision state
+            self.memorized_conflict_points = self.conflict_points.copy()
+            self.memorized_conflict_indices = self.conflict_index.copy()
         elif self.collision_memory > 0:
+            # Use memorized values during memory period
             self.collision_memory -= 1
-            self.is_collide = True  # Keep treating it as collision for a few more steps
+            self.is_collide = True
+        else:
+            # Clear memorized values when memory expires
+            self.memorized_conflict_points = None
+            self.memorized_conflict_indices = None
 
     def update_reference_states(self, speed_override=None, speed_overide_from_RL=None) -> np.ndarray:
-        """Update reference states with improved safety checks and bounds."""
+        """Update reference states with stored collision information"""
         DEFAULT_MAX_SPEED = 30.0
-        SAFETY_BUFFER_POINTS = 5  # Number of points before conflict to reach zero speed
+        SAFETY_BUFFER_POINTS = 5
         
-        # Initialize stop_point as None (will be used in plotting)
-        self.stop_point = None
-        
-        # Handle RL speed override with bounds checking
         if speed_overide_from_RL is not None:
             new_ref = np.copy(self.reference_states)
             safe_speed = np.clip(speed_overide_from_RL[0,0], 0, DEFAULT_MAX_SPEED)
             new_ref[:, 2] = safe_speed
-            print('I am using RL speed override')
+            print('Using RL speed override')
             return new_ref
 
         if not self.is_collide:
-            print('I am using no collision avoidance')
+            print('Using no collision avoidance')
             return np.copy(self.reference_states)
 
         new_reference_states = np.copy(self.reference_states)
         
-        # Get valid conflict indices (filter out None values)
-        valid_conflict_indices = [idx for idx in self.conflict_index if idx is not None]
+        # Use either current or memorized conflict indices
+        conflict_indices = self.conflict_index
+        if self.collision_memory > 0 and self.memorized_conflict_indices is not None:
+            conflict_indices = self.memorized_conflict_indices
+            
+        valid_conflict_indices = [idx for idx in conflict_indices if idx is not None]
         
         if not valid_conflict_indices:
-            print('I am using no collision avoidance')
+            print('No valid conflict indices')
             return new_reference_states
             
-        # Find earliest conflict point
         earliest_conflict_index = min(valid_conflict_indices)
-        
-        # Add safety buffer by moving the stopping point earlier
         stop_index = max(self.ego_index + 1, earliest_conflict_index - SAFETY_BUFFER_POINTS)
-        
-        # Calculate number of points between ego and stop point
         points_to_stop = stop_index - self.ego_index
         
         if points_to_stop > 0:
-            # Create linear decrease from current speed to zero
             current_speed = self.ego_vehicle.speed
             deceleration_profile = np.linspace(current_speed, 0, points_to_stop)
-            
-            # Apply the deceleration profile up to the stop point
             new_reference_states[self.ego_index:stop_index, 2] = deceleration_profile
-            
-            # Set speed to zero from stop point onwards
             new_reference_states[stop_index:, 2] = 0.0
-            
-            # Store the stop point coordinates for plotting
             self.stop_point = self.reference_trajectory[stop_index]
-            print('I am using manual collision avoidance')
+            self.last_valid_stop_point = self.stop_point  # Store last valid stop point
+            print('Using collision avoidance')
+        elif self.last_valid_stop_point is not None:
+            # Use last valid stop point if available
+            self.stop_point = self.last_valid_stop_point
+            
         return new_reference_states
 
     def plot(self):
