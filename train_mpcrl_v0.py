@@ -15,7 +15,7 @@ def train_mpcrl(cfg):
     mpcrl_agent_config = build_mpcrl_agent_config(cfg, version="v0", algorithm=algorithm)
     pure_mpc_agent_config = build_pure_mpc_agent_config(cfg)
     
-    env = gym.make("intersection-v1", render_mode="human", config=gym_env_config)
+    env = gym.make("intersection-v1", render_mode="rgb_array", config=gym_env_config)
     
     trainer = RefSpeedTrainer(env, mpcrl_agent_config, pure_mpc_agent_config)
     trainer.learn()

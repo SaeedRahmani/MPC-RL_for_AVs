@@ -190,9 +190,9 @@ class PPO_MPC(PPO):
         use_collision_avoidance = False
 
         if use_collision_avoidance:
-            from agents.pure_mpc import PureMPC_Agent
+            from agents.pure_mpc_no_collision import PureMPC_Agent
         else:
-            from agents.pure_mpc import PureMPC_Agent  # New MPC version
+            from agents.pure_mpc_no_collision import PureMPC_Agent  # New MPC version
 
         self.mpc_agent = PureMPC_Agent(
             env=self.env.envs[0],
