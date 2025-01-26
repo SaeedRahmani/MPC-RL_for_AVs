@@ -47,7 +47,7 @@ mpc_rl:
       action_space_dim: 1  # From old v0 config
       learning_rate: 0.0003  # From old lr
       n_steps: 128
-      total_timesteps: 1024  # From old total_timesteps
+      total_timesteps: 5000000  # From old total_timesteps
       batch_size: 64
       n_epochs: 10
       gamma: 0.99
