@@ -102,7 +102,65 @@ class BaseTrainer:
         # Initialize the save callback
         save_callback = SaveModelCallback(
             save_path="./saved_models",
-            save_freq=1024,
+            save_freq=256,
+            verbose=1
+        )
+
+        # Define custom callback for plotting
+        class PlottingCallback(BaseCallback):
+            def __init__(self, trainer, verbose=0):
+                super().__init__(verbose)
+                self.trainer = trainer
+
+            def _on_step(self):
+                # Get latest reward
+                if len(self.locals['infos']) > 0:
+                    latest_reward = self.locals['infos'][0].get('agents_rewards', (0,))[0]
+                    self.trainer.rewards.append(latest_reward)
+
+                # Get latest loss - print all available keys for debugging
+                if hasattr(self.model, 'logger'):
+                    logger_values = self.model.logger.name_to_value
+                    if len(logger_values) > 0:
+                        print("Available logger keys:", logger_values.keys())
+                        # Try to get any loss-related value
+                        loss = None
+                        for key in logger_values:
+                            if 'loss' in key.lower():
+                                loss = logger_values[key]
+                                break
+                        if loss is not None:
+                            print(f"Captured loss value: {loss}")
+                            self.trainer.losses.append(loss)
+
+                # Update plots every 10 steps
+                if self.n_calls % 10 == 0:
+                    self.trainer._update_plots()
+                return True
+
+        plotting_callback = PlottingCallback(self)
+
+        # Combine both callbacks
+        combined_callbacks = CallbackList([save_callback, plotting_callback])
+
+        self.model.learn(
+            total_timesteps=self.mpcrl_cfg["total_timesteps"],
+            progress_bar=self.mpcrl_cfg["show_progress_bar"],
+            callback=combined_callbacks,
+        )
+
+        # Final plot update and display
+        self._update_plots()
+        plt.figure(self.fig.number)
+        plt.show(block=True)
+
+    def learn_old(self):
+        self._build_model()
+
+        # Initialize the save callback
+        save_callback = SaveModelCallback(
+            save_path="./saved_models",
+            save_freq=256,
             verbose=1
         )
 

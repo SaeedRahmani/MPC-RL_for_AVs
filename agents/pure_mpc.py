@@ -36,7 +36,7 @@ class PureMPC_Agent(Agent):
         super().__init__(env, cfg)
 
         self.collision_memory = 0  # Add collision memory counter
-        self.collision_memory_steps = 40  # How many steps to remember collision
+        self.collision_memory_steps = 40 # How many steps to remember collision
 
         self.memorized_conflict_points = None
         self.memorized_conflict_indices = None

@@ -192,7 +192,7 @@ class PPO_MPC(PPO):
         if use_collision_avoidance:
             from agents.pure_mpc import PureMPC_Agent
         else:
-            from agents.pure_mpc_no_collision import PureMPC_Agent  # New MPC version
+            from agents.pure_mpc import PureMPC_Agent  # New MPC version
 
         self.mpc_agent = PureMPC_Agent(
             env=self.env.envs[0],
@@ -409,12 +409,14 @@ class PPO_MPC(PPO):
             if self.version == "v0":
                 ref_speed = clipped_actions
                 weights_from_RL = None
-                # print("version 0", actions)
+                print("version 0 action dim", clipped_actions.shape)
+                print("ref_speed", ref_speed)
 
             else:
                 ref_speed = None
                 weights_from_RL = clipped_actions
-                # print("version 1", actions)
+                print("version 1 action dim", clipped_actions.shape)
+                print("weights_from_RL", weights_from_RL)
             
             # let mpc agent work!
             mpc_action = self.mpc_agent.predict(
