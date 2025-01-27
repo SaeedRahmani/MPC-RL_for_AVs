@@ -44,17 +44,25 @@ mpc_rl:
       show_progress_bar: true  
   ppo:
     v0:
-      action_space_dim: 1  # From old v0 config
-      learning_rate: 0.0003  # From old lr
-      n_steps: 128
-      total_timesteps: 5000000  # From old total_timesteps
-      batch_size: 64
+      action_space_dim: 1
+      learning_rate: 0.0001
+      n_steps: 256
+      total_timesteps: 1000000
+      batch_size: 256
       n_epochs: 10
       gamma: 0.99
       gae_lambda: 0.95
       clip_range: 0.2
       normalize_advantage: true
       show_progress_bar: true
+      policy_class: "CustomActorCriticPolicy"
+      policy_kwargs:
+        features_extractor_class: "CustomFeaturesExtractor"
+        features_extractor_kwargs:
+          features_dim: 64
+        net_arch:
+          pi: [64, 64]
+          vf: [64, 64]
     v1:
       action_space_dim: 6  # From old v1 config
       learning_rate: 0.000001  # From old lr

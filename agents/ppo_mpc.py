@@ -26,6 +26,7 @@ from stable_baselines3.common.utils import (
 )
 from agents.pure_mpc import PureMPC_Agent
 
+
 SelfPPO = TypeVar("SelfPPO", bound="PPO")
 
 
@@ -357,82 +358,55 @@ class PPO_MPC(PPO):
         rollout_buffer: RolloutBuffer,
         n_rollout_steps: int,
     ) -> bool:
-        """
-        Collect experiences using the current policy and fill a ``RolloutBuffer``.
-        The term rollout here refers to the model-free notion and should not
-        be used with the concept of rollout used in model-based RL or planning.
-
-        :param env: The training environment
-        :param callback: Callback that will be called at each step
-            (and at the beginning and end of the rollout)
-        :param rollout_buffer: Buffer to fill with rollouts
-        :param n_rollout_steps: Number of experiences to collect per environment
-        :return: True if function returned with at least `n_rollout_steps`
-            collected, False if callback terminated rollout prematurely.
-        """
         assert self._last_obs is not None, "No previous observation was provided"
-        # Switch to eval mode (this affects batch norm / dropout)
         self.policy.set_training_mode(False)
 
         n_steps = 0
         rollout_buffer.reset()
-        # Sample new weights for the state dependent exploration
-        if self.use_sde:
-            self.policy.reset_noise(env.num_envs)
-
         callback.on_rollout_start()
 
         while n_steps < n_rollout_steps:
             if self.use_sde and self.sde_sample_freq > 0 and n_steps % self.sde_sample_freq == 0:
-                # Sample a new noise matrix
                 self.policy.reset_noise(env.num_envs)
 
             with th.no_grad():
-                # Convert to pytorch tensor or to TensorDict
-                obs_tensor = obs_as_tensor(self._last_obs, self.device)
+                # Convert observation to tensor if it's not already
+                if isinstance(self._last_obs, dict):
+                    obs_tensor = {
+                        'original': self._last_obs['original'].to(self.device) if isinstance(self._last_obs['original'], th.Tensor) else th.from_numpy(self._last_obs['original']).to(self.device),
+                        'structured': self._last_obs['structured'].to(self.device) if isinstance(self._last_obs['structured'], th.Tensor) else th.from_numpy(self._last_obs['structured']).to(self.device)
+                    }
+                else:
+                    obs_tensor = {
+                        'original': th.from_numpy(self._last_obs).to(self.device),
+                        'structured': th.from_numpy(self._last_obs.flatten()).to(self.device)
+                    }
+                    
                 actions, values, log_probs = self.policy(obs_tensor)
             actions = actions.cpu().numpy()
 
             # Rescale and perform action
             clipped_actions = actions
-
             if isinstance(self.action_space, spaces.Box):
                 if self.policy.squash_output:
-                    # Unscale the actions to match env bounds
-                    # if they were previously squashed (scaled in [-1, 1])
                     clipped_actions = self.policy.unscale_action(clipped_actions)
                 else:
-                    # Otherwise, clip the actions to avoid out of bound error
-                    # as we are sampling from an unbounded Gaussian distribution
                     clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
 
             if self.version == "v0":
                 ref_speed = clipped_actions
-                weights_from_RL = None
-                print("version 0 action dim", clipped_actions.shape)
-                print("ref_speed", ref_speed)
-
-            else:
-                ref_speed = None
-                weights_from_RL = clipped_actions
-                print("version 1 action dim", clipped_actions.shape)
-                print("weights_from_RL", weights_from_RL)
-            
-            # let mpc agent work!
-            mpc_action = self.mpc_agent.predict(
-                obs=np.squeeze(self._last_obs, axis=0),
-                return_numpy=True,
-                weights_from_RL=weights_from_RL,
-                ref_speed=ref_speed,
-            )
-            mpc_action = mpc_action.reshape((1,2))
+                mpc_obs = obs_tensor['original'].cpu().numpy()
+                mpc_action = self.mpc_agent.predict(
+                    obs=np.squeeze(mpc_obs, axis=0),
+                    return_numpy=True,
+                    weights_from_RL=None,
+                    ref_speed=ref_speed,
+                )
+                mpc_action = mpc_action.reshape((1, 2))
 
             new_obs, rewards, dones, infos = env.step(mpc_action)
-            print('rewards:', rewards)
-
             self.num_timesteps += env.num_envs
 
-            # Give access to local variables
             callback.update_locals(locals())
             if not callback.on_step():
                 return False
@@ -441,11 +415,9 @@ class PPO_MPC(PPO):
             n_steps += 1
 
             if isinstance(self.action_space, spaces.Discrete):
-                # Reshape in case of discrete action
                 actions = actions.reshape(-1, 1)
 
             # Handle timeout by bootstraping with value function
-            # see GitHub issue #633
             for idx, done in enumerate(dones):
                 if (
                     done
@@ -454,28 +426,33 @@ class PPO_MPC(PPO):
                 ):
                     terminal_obs = self.policy.obs_to_tensor(infos[idx]["terminal_observation"])[0]
                     with th.no_grad():
-                        terminal_value = self.policy.predict_values(terminal_obs)[0]  # type: ignore[arg-type]
+                        terminal_value = self.policy.predict_values(terminal_obs)[0]
                     rewards[idx] += self.gamma * terminal_value
 
+            # Add to buffer using structured observation
             rollout_buffer.add(
-                self._last_obs,  # type: ignore[arg-type]
+                self._last_obs['structured'] if isinstance(self._last_obs, dict) else self._last_obs,
                 actions,
                 rewards,
-                self._last_episode_starts,  # type: ignore[arg-type]
+                self._last_episode_starts,
                 values,
                 log_probs,
             )
-            self._last_obs = new_obs  # type: ignore[assignment]
+            self._last_obs = new_obs
             self._last_episode_starts = dones
 
         with th.no_grad():
             # Compute value for the last timestep
-            values = self.policy.predict_values(obs_as_tensor(new_obs, self.device))  # type: ignore[arg-type]
+            obs_tensor = {
+                'structured': th.from_numpy(new_obs['structured']).to(self.device) if isinstance(new_obs['structured'], np.ndarray) else new_obs['structured'].to(self.device),
+                'original': th.from_numpy(new_obs['original']).to(self.device) if isinstance(new_obs['original'], np.ndarray) else new_obs['original'].to(self.device)
+            } if isinstance(new_obs, dict) else {
+                'original': th.from_numpy(new_obs).to(self.device),
+                'structured': th.from_numpy(new_obs.flatten()).to(self.device)
+            }
+            values = self.policy.predict_values(obs_tensor)
 
         rollout_buffer.compute_returns_and_advantage(last_values=values, dones=dones)
-
-        callback.update_locals(locals())
-
         callback.on_rollout_end()
 
         return True

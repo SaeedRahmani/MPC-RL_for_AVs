@@ -1,3 +1,4 @@
+from custom_models.custom_policy import CustomActorCriticPolicy
 import matplotlib.pyplot as plt 
 import hydra
 import numpy as np
@@ -317,12 +318,16 @@ class BaseTrainer:
 
 class RefSpeedTrainer(BaseTrainer):
     def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict):
+        # Before calling super().__init__
+        if "policy_class" in mpcrl_cfg:
+            # If a custom policy is specified in config, import it
+            from custom_models.custom_policy import CustomActorCriticPolicy
+            mpcrl_cfg["policy"] = CustomActorCriticPolicy
+        
         super(RefSpeedTrainer, self).__init__(env, mpcrl_cfg, pure_mpc_cfg)
         self.version = "v0"
         self._setup_algorithm()
         self._build_model()
-    # def _build_model(self, version="v0"):
-    #     return super()._build_model(version)
 
 class DynamicWeightTrainer(BaseTrainer):
     def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict):
