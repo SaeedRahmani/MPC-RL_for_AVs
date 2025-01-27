@@ -5,9 +5,12 @@ import matplotlib.pyplot as plt
 import numpy as np
 from gymnasium import Env
 from shapely import LineString
+from shapely.errors import GEOSException
 
 from .base_agent import Agent
 from .utils import MPC_Action, Vehicle
+
+
 
 
 class PureMPC_Agent(Agent):
@@ -569,7 +572,12 @@ class PureMPC_Agent(Agent):
             reference_speed=self.reference_states[self.ego_index, 2]
         )
 
-        ego_path = LineString(ego_future_positions)
+        try:
+            ego_path = LineString(ego_future_positions)
+        except GEOSException as e:
+            print(f"Warning: Invalid LineString input: {e}")
+            # Handle the error (e.g., skip this step, use a default action)
+            return  # Or take some other action
 
         self.agent_current_locations = []
         self.agent_future_locations = []
