@@ -6,6 +6,22 @@ env:
   order: sorted
   spawn_probability: 0.3
 
+ppo:
+  # Model parameters
+  learning_rate: 3e-4
+  n_steps: 2048
+  batch_size: 64
+  n_epochs: 10
+  gamma: 0.99
+  gae_lambda: 0.95
+  clip_range: 0.2
+  ent_coef: 0.01
+  
+  # Training parameters
+  total_timesteps: 1000000
+  save_freq: 1024
+  eval_freq: 1024
+
 # New config that works with different algorithms
 mpc_rl:
   algorithm: "ppo"  # or "a2c"
