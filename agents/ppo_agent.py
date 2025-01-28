@@ -93,7 +93,7 @@ class PPOAgent:
             
         # Get all training run directories
         run_dirs = [d for d in os.listdir(ppo_dir) 
-                   if os.path.isdir(os.path.join(ppo_dir, d))]
+                if os.path.isdir(os.path.join(ppo_dir, d))]
         if not run_dirs:
             raise FileNotFoundError(f"No training runs found in {ppo_dir}")
             
@@ -103,14 +103,22 @@ class PPOAgent:
         
         # Find latest model in that run
         models = [f for f in os.listdir(run_dir) 
-                 if f.startswith("ppo_model_step") or f == "final_model"]
+                if f.startswith("ppo_model_step") or f == "final_model"]
         if not models:
             raise FileNotFoundError(f"No models found in {run_dir}")
             
         if "final_model" in models:
             latest_model = "final_model"
         else:
-            latest_model = sorted(models)[-1]
-            
+            # Extract step numbers and sort numerically
+            def get_step_number(filename):
+                try:
+                    return int(filename.split('_')[-1])  # Extract the number at the end
+                except ValueError:
+                    return -1  # For files that don't match the pattern
+                    
+            models = sorted(models, key=get_step_number)
+            latest_model = models[-1]
+                
         model_path = os.path.join(run_dir, latest_model)
         return model_path
