@@ -1,5 +1,6 @@
 import os
 import sys
+import glob
 import gymnasium as gym
 import highway_env
 import numpy as np
@@ -19,6 +20,13 @@ from agents.pure_mpc_no_collision import PureMPC_Agent as PureMPC_NoCollision_Ag
 from config.config import build_env_config, build_mpcrl_agent_config, build_pure_mpc_agent_config
 from trainers.trainer import RefSpeedTrainer
 
+# Evaluation Configuration
+VISUALIZATION_MODE = False  # Set to False for multiple runs without visualization
+N_EPISODES = 1 if VISUALIZATION_MODE else 10  # Number of episodes to run
+RENDER_MODE = "human" if VISUALIZATION_MODE else "rgb_array"
+MODELS_TO_EVALUATE = ["pure_mpc_no_collision"]  # Options: ["pure_mpc", "pure_mpc_no_collision", "mpcrl"]
+MODELS_TO_EVALUATE = ["pure_mpc", "pure_mpc_no_collision", "mpcrl"]
+
 class ModelEvaluator:
     def __init__(self, cfg):
         self.cfg = cfg
@@ -34,7 +42,7 @@ class ModelEvaluator:
         collisions = 0
         success = False
         
-        for step in range(150):  # Run for 150 steps
+        for step in range(200):  # Run for 150 steps
             if model_type == "pure_mpc":
                 action = model.predict(observation, return_numpy=True)
             elif model_type == "pure_mpc_no_collision":
@@ -46,13 +54,22 @@ class ModelEvaluator:
             observation, reward, done, truncated, info = env.step(action)
             episode_steps += 1
             
+            if VISUALIZATION_MODE:
+                env.render()
+                print(f"Step {step}, Reward: {reward}")
+                if info.get("crashed", False):
+                    print("COLLISION DETECTED!")
+                # Arrival is checked in the main loop condition above
+            
             # Check for collision
             if info.get("crashed", False):
                 collisions += 1
             
-            # Check for success (reaching the end)
-            if info.get("arrived", False):
+            # Check for success (reaching the end) using the environment's has_arrived method
+            if env.unwrapped.has_arrived(env.unwrapped.controlled_vehicles[0]):
                 success = True
+                if VISUALIZATION_MODE:
+                    print("DESTINATION REACHED! Vehicle has arrived at exit.")
                 break
                 
             if done or truncated:
@@ -64,46 +81,51 @@ class ModelEvaluator:
             "steps": episode_steps
         }
 
-    def run_evaluation(self, n_episodes=10):
+    def run_evaluation(self):
         results = defaultdict(lambda: {"successes": 0, "collisions": 0, "total_steps": 0})
         
         # Initialize environment
-        env = gym.make("intersection-v1", render_mode="rgb_array", config=self.env_config)
+        env = gym.make("intersection-v1", render_mode=RENDER_MODE, config=self.env_config)
         
-        # Test Pure MPC with collision avoidance
-        print("Evaluating Pure MPC with collision avoidance...")
-        pure_mpc = PureMPC_Agent(env, self.pure_mpc_cfg)
-        for episode in range(n_episodes):
-            print(f"Episode {episode + 1}/{n_episodes}")
-            episode_results = self.evaluate_single_episode("pure_mpc", pure_mpc, env)
-            self.update_results("pure_mpc", episode_results, results)
+        for model_type in MODELS_TO_EVALUATE:
+            print(f"\nEvaluating {model_type}...")
             
-        # Test Pure MPC without collision avoidance
-        print("\nEvaluating Pure MPC without collision avoidance...")
-        pure_mpc_no_collision = PureMPC_NoCollision_Agent(env, self.pure_mpc_no_collision_cfg)
-        for episode in range(n_episodes):
-            print(f"Episode {episode + 1}/{n_episodes}")
-            episode_results = self.evaluate_single_episode("pure_mpc_no_collision", pure_mpc_no_collision, env)
-            self.update_results("pure_mpc_no_collision", episode_results, results)
+            # Initialize the appropriate model
+            if model_type == "pure_mpc":
+                model = PureMPC_Agent(env, self.pure_mpc_cfg)
+            elif model_type == "pure_mpc_no_collision":
+                model = PureMPC_NoCollision_Agent(env, self.pure_mpc_no_collision_cfg)
+            elif model_type == "mpcrl":
+                model = RefSpeedTrainer(env, self.mpcrl_cfg, self.pure_mpc_cfg)
+                # Find the latest saved model
+                save_dir = os.path.join(project_root, "saved_models")
+                model_files = sorted(glob.glob(f"{save_dir}/*"), key=os.path.getmtime, reverse=True)
+                if not model_files:
+                    raise FileNotFoundError(f"No saved models found in {save_dir}")
+                
+                latest_model_path = model_files[0]
+                print(f"Loading latest model: {latest_model_path}")
+                
+                model.load(
+                    path=latest_model_path,
+                    mpcrl_cfg=self.mpcrl_cfg,
+                    version="v0",
+                    pure_mpc_cfg=self.pure_mpc_cfg,
+                    env=env
+                )
             
-        # Test MPC-RL
-        print("\nEvaluating MPC-RL...")
-        trainer = RefSpeedTrainer(env, self.mpcrl_cfg, self.pure_mpc_cfg)
-        try:
-            weights_path = os.path.join(project_root, "weights/v0/test_ppo_v0")
-            trainer.load(
-                path=weights_path,
-                mpcrl_cfg=self.mpcrl_cfg,
-                version="v0",
-                pure_mpc_cfg=self.pure_mpc_cfg,
-                env=env
-            )
-            for episode in range(n_episodes):
-                print(f"Episode {episode + 1}/{n_episodes}")
-                episode_results = self.evaluate_single_episode("mpcrl", trainer, env)
-                self.update_results("mpcrl", episode_results, results)
-        except Exception as e:
-            print(f"Error loading MPC-RL model: {e}")
+            # Run evaluation episodes
+            for episode in range(N_EPISODES):
+                print(f"Episode {episode + 1}/{N_EPISODES}")
+                episode_results = self.evaluate_single_episode(model_type, model, env)
+                self.update_results(model_type, episode_results, results)
+                
+                if VISUALIZATION_MODE:
+                    print("\nEpisode Results:")
+                    print(f"Success: {'Yes' if episode_results['success'] else 'No'}")
+                    print(f"Collisions: {'Yes' if episode_results['collisions'] else 'No'}")
+                    print(f"Steps taken: {episode_results['steps']}")
+                    print("-" * 50)
         
         env.close()
         return results
@@ -114,6 +136,9 @@ class ModelEvaluator:
         results[model_type]["total_steps"] += episode_results["steps"]
 
     def plot_results(self, results, n_episodes):
+        if n_episodes == 1:
+            return  # Don't create plots for single episodes
+            
         models = list(results.keys())
         metrics = {
             "Success Rate": [results[m]["successes"]/n_episodes * 100 for m in models],
@@ -122,7 +147,6 @@ class ModelEvaluator:
         }
         
         fig, axes = plt.subplots(1, 3, figsize=(15, 5))
-        
         colors = ['#2ecc71', '#e74c3c', '#3498db']  # Green, Red, Blue
         
         for i, (metric, values) in enumerate(metrics.items()):
@@ -150,19 +174,20 @@ class ModelEvaluator:
 @hydra.main(config_name="cfg", config_path="../config", version_base="1.3")
 def main(cfg):
     evaluator = ModelEvaluator(cfg)
-    results = evaluator.run_evaluation(n_episodes=10)
+    results = evaluator.run_evaluation()
     
     # Print results
-    print("\nEvaluation Results:")
-    print("=" * 50)
-    for model_type, metrics in results.items():
-        print(f"\nModel: {model_type}")
-        print(f"Success Rate: {metrics['successes']/10 * 100:.1f}%")
-        print(f"Collision Rate: {metrics['collisions']/10 * 100:.1f}%")
-        print(f"Average Steps: {metrics['total_steps']/10:.1f}")
-    
-    # Plot results
-    evaluator.plot_results(results, n_episodes=10)
+    if not VISUALIZATION_MODE:
+        print("\nEvaluation Results:")
+        print("=" * 50)
+        for model_type, metrics in results.items():
+            print(f"\nModel: {model_type}")
+            print(f"Success Rate: {metrics['successes']/N_EPISODES * 100:.1f}%")
+            print(f"Collision Rate: {metrics['collisions']/N_EPISODES * 100:.1f}%")
+            print(f"Average Steps: {metrics['total_steps']/N_EPISODES:.1f}")
+        
+        # Plot results
+        evaluator.plot_results(results, N_EPISODES)
 
 if __name__ == "__main__":
     main()
