@@ -26,7 +26,7 @@ def test_mpcrl(cfg):
 
 
     # Find the latest saved model
-    save_dir = "./saved_models"
+    save_dir = "./saved_models/mpcrl"
     model_files = sorted(glob.glob(f"{save_dir}/*"), key=os.path.getmtime, reverse=True)
     if not model_files:
         raise FileNotFoundError(f"No saved models found in {save_dir}")

@@ -159,7 +159,7 @@ class BaseTrainer:
 
         # Initialize the save callback
         save_callback = SaveModelCallback(
-            save_path="./saved_models",
+            save_path="./saved_models/mpcrl",
             save_freq=1024,
             verbose=1
         )
