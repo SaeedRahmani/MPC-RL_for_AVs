@@ -1,0 +1,168 @@
+import os
+import sys
+import gymnasium as gym
+import highway_env
+import numpy as np
+from collections import defaultdict
+import torch
+import hydra
+import matplotlib.pyplot as plt
+from pathlib import Path
+
+# Add the project root directory to Python path
+project_root = str(Path(__file__).parent.parent)
+if project_root not in sys.path:
+    sys.path.append(project_root)
+
+from agents.pure_mpc import PureMPC_Agent
+from agents.pure_mpc_no_collision import PureMPC_Agent as PureMPC_NoCollision_Agent
+from config.config import build_env_config, build_mpcrl_agent_config, build_pure_mpc_agent_config
+from trainers.trainer import RefSpeedTrainer
+
+class ModelEvaluator:
+    def __init__(self, cfg):
+        self.cfg = cfg
+        self.env_config = build_env_config(cfg)
+        self.pure_mpc_cfg = build_pure_mpc_agent_config(cfg)
+        self.pure_mpc_no_collision_cfg = build_pure_mpc_agent_config(cfg, use_collision_avoidance=False)
+        self.mpcrl_cfg = build_mpcrl_agent_config(cfg, version="v0", algorithm="ppo")
+
+    def evaluate_single_episode(self, model_type, model=None, env=None):
+        """Run a single episode and return metrics"""
+        observation, _ = env.reset()
+        episode_steps = 0
+        collisions = 0
+        success = False
+        
+        for step in range(150):  # Run for 150 steps
+            if model_type == "pure_mpc":
+                action = model.predict(observation, return_numpy=True)
+            elif model_type == "pure_mpc_no_collision":
+                action = model.predict(observation, return_numpy=True)
+            elif model_type == "mpcrl":
+                action = model.predict(observation, False)
+                action = [action.acceleration/5, action.steer/(np.pi/3)]
+            
+            observation, reward, done, truncated, info = env.step(action)
+            episode_steps += 1
+            
+            # Check for collision
+            if info.get("crashed", False):
+                collisions += 1
+            
+            # Check for success (reaching the end)
+            if info.get("arrived", False):
+                success = True
+                break
+                
+            if done or truncated:
+                break
+        
+        return {
+            "success": success,
+            "collisions": collisions > 0,
+            "steps": episode_steps
+        }
+
+    def run_evaluation(self, n_episodes=10):
+        results = defaultdict(lambda: {"successes": 0, "collisions": 0, "total_steps": 0})
+        
+        # Initialize environment
+        env = gym.make("intersection-v1", render_mode="rgb_array", config=self.env_config)
+        
+        # Test Pure MPC with collision avoidance
+        print("Evaluating Pure MPC with collision avoidance...")
+        pure_mpc = PureMPC_Agent(env, self.pure_mpc_cfg)
+        for episode in range(n_episodes):
+            print(f"Episode {episode + 1}/{n_episodes}")
+            episode_results = self.evaluate_single_episode("pure_mpc", pure_mpc, env)
+            self.update_results("pure_mpc", episode_results, results)
+            
+        # Test Pure MPC without collision avoidance
+        print("\nEvaluating Pure MPC without collision avoidance...")
+        pure_mpc_no_collision = PureMPC_NoCollision_Agent(env, self.pure_mpc_no_collision_cfg)
+        for episode in range(n_episodes):
+            print(f"Episode {episode + 1}/{n_episodes}")
+            episode_results = self.evaluate_single_episode("pure_mpc_no_collision", pure_mpc_no_collision, env)
+            self.update_results("pure_mpc_no_collision", episode_results, results)
+            
+        # Test MPC-RL
+        print("\nEvaluating MPC-RL...")
+        trainer = RefSpeedTrainer(env, self.mpcrl_cfg, self.pure_mpc_cfg)
+        try:
+            weights_path = os.path.join(project_root, "weights/v0/test_ppo_v0")
+            trainer.load(
+                path=weights_path,
+                mpcrl_cfg=self.mpcrl_cfg,
+                version="v0",
+                pure_mpc_cfg=self.pure_mpc_cfg,
+                env=env
+            )
+            for episode in range(n_episodes):
+                print(f"Episode {episode + 1}/{n_episodes}")
+                episode_results = self.evaluate_single_episode("mpcrl", trainer, env)
+                self.update_results("mpcrl", episode_results, results)
+        except Exception as e:
+            print(f"Error loading MPC-RL model: {e}")
+        
+        env.close()
+        return results
+
+    def update_results(self, model_type, episode_results, results):
+        results[model_type]["successes"] += int(episode_results["success"])
+        results[model_type]["collisions"] += int(episode_results["collisions"])
+        results[model_type]["total_steps"] += episode_results["steps"]
+
+    def plot_results(self, results, n_episodes):
+        models = list(results.keys())
+        metrics = {
+            "Success Rate": [results[m]["successes"]/n_episodes * 100 for m in models],
+            "Collision Rate": [results[m]["collisions"]/n_episodes * 100 for m in models],
+            "Average Steps": [results[m]["total_steps"]/n_episodes for m in models]
+        }
+        
+        fig, axes = plt.subplots(1, 3, figsize=(15, 5))
+        
+        colors = ['#2ecc71', '#e74c3c', '#3498db']  # Green, Red, Blue
+        
+        for i, (metric, values) in enumerate(metrics.items()):
+            bars = axes[i].bar(models, values, color=colors)
+            axes[i].set_title(metric)
+            axes[i].set_xticklabels(models, rotation=45)
+            if metric.endswith("Rate"):
+                axes[i].set_ylabel("Percentage (%)")
+            else:
+                axes[i].set_ylabel("Steps")
+            
+            # Add value labels on top of each bar
+            for bar in bars:
+                height = bar.get_height()
+                axes[i].text(bar.get_x() + bar.get_width()/2., height,
+                         f'{height:.1f}',
+                         ha='center', va='bottom')
+        
+        plt.tight_layout()
+        plot_path = os.path.join(project_root, "model_comparison_results.png")
+        plt.savefig(plot_path)
+        print(f"\nResults plot saved to: {plot_path}")
+        plt.close()
+
+@hydra.main(config_name="cfg", config_path="../config", version_base="1.3")
+def main(cfg):
+    evaluator = ModelEvaluator(cfg)
+    results = evaluator.run_evaluation(n_episodes=10)
+    
+    # Print results
+    print("\nEvaluation Results:")
+    print("=" * 50)
+    for model_type, metrics in results.items():
+        print(f"\nModel: {model_type}")
+        print(f"Success Rate: {metrics['successes']/10 * 100:.1f}%")
+        print(f"Collision Rate: {metrics['collisions']/10 * 100:.1f}%")
+        print(f"Average Steps: {metrics['total_steps']/10:.1f}")
+    
+    # Plot results
+    evaluator.plot_results(results, n_episodes=10)
+
+if __name__ == "__main__":
+    main()
