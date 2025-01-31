@@ -2,11 +2,11 @@ from setuptools import find_packages, setup
 
 setup(
     name='mpcrl',  
-    version='0.1.0', 
+    version='0.2.0', 
     description='A brief description of your package',
-    author='Zhenlin (Gavin) Xu',
-    author_email='gavinxu66@gmail.com',
-    url='https://github.com/Zhenlin-Xu/mpcrl',
+    author='Saeed Rahmani, Gavin (Zhenlin) Xu, Gozde Korpe',
+    author_email='s.rahmani@tudelft.com',
+    url='https://github.com/SaeedRahmani/MPC-RL_for_AVs',
     packages=find_packages(),
     install_requires=[
         'gymnasium==0.29.1',

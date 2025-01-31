@@ -7,8 +7,8 @@ A framework for integrating Model Predictive Control (MPC) and Single-agent Rein
 Clone the repository:
 
 ```bash
-git clone https://github.com/yourusername/mpcrl.git
-cd mpcrl
+git clone https://github.com/SaeedRahmani/MPC-RL_for_AVs.git
+cd MPC-RL_for_AVs
 ```
 
 Install in the develop mode:
