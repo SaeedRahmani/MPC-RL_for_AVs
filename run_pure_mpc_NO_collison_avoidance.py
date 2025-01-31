@@ -28,7 +28,7 @@ def test_pure_mpc_agent(cfg):
     steps_per_speed = 33  # Change speed every 33 steps
     step_count = 0
     
-    for i in range(100):
+    for i in range(200):
         # Update reference speed periodically
         if i % steps_per_speed == 0 and current_speed_idx < len(test_speeds):
             ref_speed = test_speeds[current_speed_idx]
