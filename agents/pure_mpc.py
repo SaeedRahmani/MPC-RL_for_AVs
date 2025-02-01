@@ -10,9 +10,6 @@ from shapely.errors import GEOSException
 from .base_agent import Agent
 from .utils import MPC_Action, Vehicle
 
-
-
-
 class PureMPC_Agent(Agent):
 
     weight_components = [
