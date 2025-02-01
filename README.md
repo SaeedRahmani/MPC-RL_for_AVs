@@ -57,14 +57,15 @@ tree
 ```
 
 ## To-do List
-
-- [ ] `Config`: Make a full configuration file and output structure, loggings.
-- [ ] `MPC`: generate new reference speed if collision is detected.
-- [ ] `MPC`:  Adapt collision cost and vehicle dynamics updates for other agent vehicles.
+- [ ] `Speed`: Improve the speed of training
+- [ ] `Algorithm`: Add other RL algorithms
 - [ ] `Animation`:  Enhance the visualization by adding vehicle shapes and orientations.
 
-## Completed
 
+## Completed
+- [x] `Config`: Make a full configuration file and output structure, loggings.
+- [x] `MPC`: generate new reference speed if collision is detected.
+- [x] `MPC`:  Adapt collision cost and vehicle dynamics updates for other agent vehicles.
 - [x] `MPC+RL`: Integrate `PureMPC_Agent` as a component into `stable_baselines3` agents.
 - [x] `RL`: Add stable_baselines as dependencies.
 - [x] `Config`: Add `hydra` and `YAML` configuration files for better organization of training and testing parameters.
