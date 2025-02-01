@@ -465,23 +465,35 @@ class MetricsCallback(BaseCallback):
             
             # Update episode tracking
             self.episode_step_count += 1
-            self.current_episode_reward += info.get('agents_rewards', (0,))[0]
+            reward = info.get('agents_rewards', (0,))[0]  # Instant reward
+            self.current_episode_reward += reward
             
             # Track speed
             if hasattr(self.trainer.env.unwrapped, 'controlled_vehicles'):
                 vehicle = self.trainer.env.unwrapped.controlled_vehicles[0]
                 self.speed_buffer.append(vehicle.speed)
 
+            # Print rewards for debugging
+            env = self.trainer.env.unwrapped
+            print(f"Step Reward: {reward}, Collision Reward: {env.config['collision_reward']}, Arrival Reward: {env.config['arrived_reward']}")
+
+            # Check for collision and success
+            # is_collision = abs(reward - env.config["collision_reward"]) < 1e-5
+            is_collision = reward == env.config["collision_reward"]
+            is_success = reward == env.config["arrived_reward"]
+
             # Check if episode ended
-            if self.locals['dones'][0]:
+            if self.locals['dones'][0]:  
                 # Record episode metrics
                 self.trainer.metrics['episode_rewards'].append(self.current_episode_reward)
                 self.trainer.metrics['episode_lengths'].append(self.episode_step_count)
-                self.trainer.metrics['collision_count'].append(
-                    1 if info.get('crashed', False) else 0)
-                self.trainer.metrics['success_count'].append(
-                    1 if info.get('arrived_reward', False) else 0)
-                self.trainer.metrics['avg_speed'].append(np.mean(self.speed_buffer))
+                self.trainer.metrics['collision_count'].append(1 if is_collision else 0)
+                self.trainer.metrics['success_count'].append(1 if is_success else 0)
+                
+                if len(self.speed_buffer) > 0:
+                    self.trainer.metrics['avg_speed'].append(np.mean(self.speed_buffer))
+                else:
+                    self.trainer.metrics['avg_speed'].append(0)
 
                 # Reset episode tracking
                 self.episode_step_count = 0
@@ -510,6 +522,8 @@ class MetricsCallback(BaseCallback):
             self.trainer._update_plots()
 
         return True
+
+
 
 class RefSpeedTrainer(BaseTrainer):
     def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict):
