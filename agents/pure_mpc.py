@@ -1,5 +1,5 @@
 """ Pure MPC agent """
-
+import multiprocessing as mp
 import casadi as ca
 import matplotlib.pyplot as plt
 import numpy as np
@@ -12,9 +12,8 @@ from .utils import MPC_Action, Vehicle
 
 
 
-
 class PureMPC_Agent(Agent):
-
+    # Define weight components as a class attribute
     weight_components = [
         "state", 
         "control", 
@@ -37,16 +36,15 @@ class PureMPC_Agent(Agent):
             cfg: configuration dict for pure mpc agent.
         """
         super().__init__(env, cfg)
-
+        
+        # Initialize collision-related attributes
         self.collision_memory = 0  # Add collision memory counter
         self.collision_memory_steps = 40 # How many steps to remember collision
-
         self.memorized_conflict_points = None
         self.memorized_conflict_indices = None
         self.last_valid_stop_point = None
 
         # Load collision detection parameters from config
-        # self.detection_dist = self.config.get("detection_distance", 100)
         self.ttc_threshold = self.config.get("ttc_threshold", 3)
 
         # Load weights for each cost component from config
@@ -288,8 +286,8 @@ class PureMPC_Agent(Agent):
         opts = {
             'ipopt.print_level': 0, 
             'print_time':0,
-            'ipopt.max_iter':1000,
-            'ipopt.tol':1e-6,
+            'ipopt.max_iter':500,
+            'ipopt.tol':1e-4,
         }
         solver = ca.nlpsol('solver', 'ipopt', nlp, opts)
         
