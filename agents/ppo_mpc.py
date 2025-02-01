@@ -1,11 +1,13 @@
-import torch as th
+from multiprocessing import get_context, cpu_count
+import functools
 import numpy as np
-from gymnasium import spaces
+import torch as th
 from stable_baselines3.common.utils import obs_as_tensor
-from agents.pure_mpc import PureMPC_Agent
+from gymnasium import spaces
+from concurrent.futures import ProcessPoolExecutor
 import multiprocessing as mp
-from concurrent.futures import ThreadPoolExecutor
-import copy
+from functools import partial
+from stable_baselines3.ppo import PPO
 
 import warnings
 from typing import Any, ClassVar, Dict, Optional, Type, TypeVar, Union
@@ -61,9 +63,17 @@ def solve_mpc(pure_mpc_cfg, env_config, obs, return_numpy, weights_from_RL, ref_
     """Standalone function for MPC solving to ensure clean process creation"""
     from agents.pure_mpc import PureMPC_Agent
     import gymnasium as gym
+    import matplotlib
+    matplotlib.use('Agg')  # Set non-interactive backend
+    
+    # Modify config to disable rendering in worker processes
+    env_config = env_config.copy()
+    env_config["render_mode"] = None
+    pure_mpc_cfg = pure_mpc_cfg.copy()
+    pure_mpc_cfg["render"] = False
     
     # Create environment instance
-    env = gym.make("intersection-v1", render_mode="rgb_array", config=env_config)
+    env = gym.make("intersection-v1", render_mode=None, config=env_config)
     
     # Create MPC agent
     mpc_agent = PureMPC_Agent(env=env, cfg=pure_mpc_cfg)
@@ -195,8 +205,11 @@ class PPO_MPC(PPO):
         )
 
         self.n_workers = max(1, mp.cpu_count() - 1)  # Leave one CPU for main process
-        self.process_pool = ProcessPoolExecutor(max_workers=self.n_workers)
-        
+        mp_context = mp.get_context('spawn')  # Use spawn context for better compatibility
+        self.process_pool = ProcessPoolExecutor(
+            max_workers=self.n_workers,
+            mp_context=mp_context
+        )
         # Sanity check, otherwise it will lead to noisy gradient and NaN
         # because of the advantage normalization
         if normalize_advantage:

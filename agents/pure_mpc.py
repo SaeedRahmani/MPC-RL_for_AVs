@@ -10,10 +10,7 @@ from shapely.errors import GEOSException
 from .base_agent import Agent
 from .utils import MPC_Action, Vehicle
 
-
-
 class PureMPC_Agent(Agent):
-    # Define weight components as a class attribute
     weight_components = [
         "state", 
         "control", 
@@ -28,38 +25,35 @@ class PureMPC_Agent(Agent):
         env: Env,
         cfg: dict, 
     ) -> None:
-        """
-        Initializer.
-        
-        Args:
-            env: gym.Env, a highway-env gymnasium environment to retrieve the configuration.
-            cfg: configuration dict for pure mpc agent.
-        """
         super().__init__(env, cfg)
         
-        # Initialize collision-related attributes
-        self.collision_memory = 0  # Add collision memory counter
-        self.collision_memory_steps = 40 # How many steps to remember collision
+        self.collision_memory = 0
+        self.collision_memory_steps = 40
         self.memorized_conflict_points = None
         self.memorized_conflict_indices = None
         self.last_valid_stop_point = None
-
-        # Load collision detection parameters from config
         self.ttc_threshold = self.config.get("ttc_threshold", 3)
 
-        # Load weights for each cost component from config
         self.default_weights = {
             f"weight_{key}": self.config[f"weight_{key}"]
             for key in PureMPC_Agent.weight_components
         }
 
-        # Initialize the matplotlib fig and ax if rendering is enabled
+        # Only initialize matplotlib if rendering is enabled
+        self.fig = None
+        self.ax = None
         if self.config.get("render", False):
-            window_size = self.config.get("render_window_size", 5)
-            self.fig, self.ax = plt.subplots(figsize=(window_size, window_size))
-            # Set the position of the figure window (x, y)
-            manager = plt.get_current_fig_manager()
-            manager.window.wm_geometry("+50+50")  
+            try:
+                import matplotlib.pyplot as plt
+                window_size = self.config.get("render_window_size", 5)
+                self.fig, self.ax = plt.subplots(figsize=(window_size, window_size))
+                manager = plt.get_current_fig_manager()
+                if manager is not None:
+                    manager.window.wm_geometry("+50+50")
+            except Exception as e:
+                print(f"Warning: Could not initialize matplotlib: {e}")
+                self.fig = None
+                self.ax = None
         
         self.last_acc = 0
 
@@ -312,9 +306,9 @@ class PureMPC_Agent(Agent):
     
 
     def visualize_predictions(self):
-        """Visualize predictions for debugging purposes."""
-        x_range = self.config.get("render_axis_range", 50)
-        
+        """Visualize predictions only if rendering is enabled"""
+        if not self.config.get("render", False) or self.fig is None or self.ax is None:
+            return
         # Clear the content of the last frame
         self.ax.clear()
         
