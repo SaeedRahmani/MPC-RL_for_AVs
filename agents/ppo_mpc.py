@@ -185,14 +185,14 @@ class PPO_MPC(PPO):
 
         # initialize MPC agent
         self.version = version
-        print("version in ppo_mpc init", version)
+        print("version in ppo_mpc in the init section", version)
 
-        use_collision_avoidance = False
+        use_collision_avoidance = True
 
         if use_collision_avoidance:
             from agents.pure_mpc import PureMPC_Agent
         else:
-            from agents.pure_mpc import PureMPC_Agent  # New MPC version
+            from agents.pure_mpc_no_collision import PureMPC_Agent  # MPC without manual collision avoidance
 
         self.mpc_agent = PureMPC_Agent(
             env=self.env.envs[0],
@@ -405,7 +405,7 @@ class PPO_MPC(PPO):
                     # Otherwise, clip the actions to avoid out of bound error
                     # as we are sampling from an unbounded Gaussian distribution
                     clipped_actions = np.clip(actions, self.action_space.low, self.action_space.high)
-
+            
             if self.version == "v0":
                 ref_speed = clipped_actions
                 weights_from_RL = None
@@ -425,10 +425,11 @@ class PPO_MPC(PPO):
                 weights_from_RL=weights_from_RL,
                 ref_speed=ref_speed,
             )
+            
+            # TODO: check if it's needed
             mpc_action = mpc_action.reshape((1,2))
 
             new_obs, rewards, dones, infos = env.step(mpc_action)
-            print('rewards:', rewards)
 
             self.num_timesteps += env.num_envs
 
