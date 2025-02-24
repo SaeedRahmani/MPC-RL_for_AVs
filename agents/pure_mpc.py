@@ -140,6 +140,7 @@ class PureMPC_Agent(Agent):
             perp_deviation = dx * ca.sin(ref_heading) - dy * ca.cos(ref_heading)
             para_deviation = dx * ca.cos(ref_heading) + dy * ca.sin(ref_heading)
             
+            # TODO: Check this and remove it if not needed
             speed_weight = 1
             if self.is_collide:
                 # print('collision', self.is_collide)
@@ -154,6 +155,8 @@ class PureMPC_Agent(Agent):
                 # speed_weight * x[3, k]**2 +
                 0.5 * (x[2, k] - ref_heading)**2
             )
+            
+            # TODO: Add a cost for not going out of the road (here and in the constraints)
 
             # Control cost
             control_cost += 0.01 * u[0, k]**2 + 0.01 * u[1, k]**2
@@ -164,7 +167,6 @@ class PureMPC_Agent(Agent):
 
             ### This cost must be zero if we want to mannually change the ref traj in case of accidents
             # Distance cost
-            
             if not manual_collision_avoidance:
                 for other_vehicle in self.agent_vehicles_mpc:
                     dist = ca.norm_2(x[:2, k] - other_vehicle.position)
@@ -184,6 +186,7 @@ class PureMPC_Agent(Agent):
                 distance_cost = 0
                 collision_cost = 0
 
+            # TODO: See why do we need it here.
             # Update other vehicles' location (constant speed)
             for other_vehicle in self.agent_vehicles_mpc:
                 other_vehicle.position = self.other_vehicle_model(other_vehicle, self.dt)
@@ -264,6 +267,7 @@ class PureMPC_Agent(Agent):
         lbx = []
         ubx = []
         
+        #TODO: Check this 
         # Bounds on the state variables (no specific bounds for now)
         for _ in range(N + 1):
             lbx += [-500, -500, -ca.pi, 0]  # Lower bounds [x, y, theta, v]
@@ -274,6 +278,8 @@ class PureMPC_Agent(Agent):
         for _ in range(N):
             lbx += [-5, -ca.pi / 3]  # Lower bounds [acceleration, steer_angle]
             ubx += [5, ca.pi / 3]    # Upper bounds [acceleration, steer_angle]
+            
+        # TODO: Add a cost for staying on the road
         
         # Create the optimization problem
         nlp = {
@@ -293,8 +299,10 @@ class PureMPC_Agent(Agent):
         # Solve the optimization problem
         sol = solver(x0=x0, lbx=lbx, ubx=ubx, lbg=lbg, ubg=ubg)
         
+        # TODO: Add a return value for the reward function to penalize RL agent for infeasible solutions
         if not solver.stats()['success']:
             print("NOTICE: Not found solution")
+            # return MPC_Action(acceleration=self.last_acc, steer=0), False
             
         
         # # Solve the optimization problem
