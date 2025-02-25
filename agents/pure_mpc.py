@@ -521,7 +521,9 @@ class PureMPC_Agent(Agent):
                 next_position = prev_point + alpha * (next_point - prev_point)
                 
             future_positions.append(next_position)
-        
+            
+        if len(future_positions) <= 1:
+            return [current_position] * prediction_horizon  # Fallback
         return future_positions
 
     def predict_future_positions(self, current_position, speed, heading, dt, prediction_horizon):
@@ -704,6 +706,7 @@ class PureMPC_Agent(Agent):
             
         earliest_conflict_index = min(valid_conflict_indices)
         stop_index = max(self.ego_index + 1, earliest_conflict_index - SAFETY_BUFFER_POINTS)
+        stop_index = min(stop_index, len(self.reference_trajectory) - 1)  # Cap to max valid index 
         points_to_stop = stop_index - self.ego_index
         
         if points_to_stop > 0:
