@@ -204,7 +204,7 @@ class BaseTrainer:
         # Initialize the save callback
         save_callback = SaveModelCallback(
             save_path="./saved_models",
-            save_freq=1024,
+            save_freq=256,
             verbose=1
         )
 
@@ -369,7 +369,9 @@ class BaseTrainer:
                 return_numpy=return_numpy,
                 weights_from_RL=RL_output.detach().numpy(),
                 ref_speed=None,
-            )            
+            )
+            # Print the reference speed
+            print("Reference Speed from RL Agent:", RL_output.detach().numpy())
             # mpc_action = mpc_action.reshape((1,2))    
         return mpc_action
 
@@ -425,6 +427,7 @@ class BaseTrainer:
         # Initialize the model with the selected algorithm and parameters
         self.model = self.algo(**common_params)
 
+        # TODO: Check to see if this is generic 
         # Replace the action space in the model
         new_action_space = Box(
             low=-1 * np.ones(action_dim),
@@ -433,6 +436,25 @@ class BaseTrainer:
             dtype=np.float32,
         )
         self.model.action_space = new_action_space
+        
+        # if self.version == "v0":
+        #     low = 0.0   # Lower bound for v0
+        #     high = 30.0  # Upper bound for v0
+        # elif self.version == "v1":
+        #     low = 0.0        # Lower bounds for 6 weights in v1
+        #     high = 300.0 # Upper bounds for 6 weights in v1
+        # else:
+        #     raise ValueError("Unknown version: must be 'v0' or 'v1'")
+
+        # # Define the action space
+        # new_action_space = Box(
+        #     low=low, 
+        #     high=high, 
+        #     shape=(action_dim,), 
+        #     dtype=np.float32)
+        
+        
+        self.action_space = new_action_space  # Assign to the model's action space
 
         # Replace the action dimension in the rollout buffer, if applicable
         if hasattr(self.model, "rollout_buffer") and self.model.rollout_buffer is not None:

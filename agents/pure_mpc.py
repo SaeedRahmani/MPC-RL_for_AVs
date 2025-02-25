@@ -15,8 +15,8 @@ class PureMPC_Agent(Agent):
     weight_components = [
         "state", 
         "control", 
-        "distance", 
-        "collision", 
+        # "distance", 
+        # "collision", 
         "input_diff", 
         "final_state"
     ]
@@ -205,8 +205,8 @@ class PureMPC_Agent(Agent):
         total_cost = (
             state_cost * weights["weight_state"] +      # old weight: 10
             control_cost * weights["weight_control"] +  # old weight: 1
-            distance_cost * weights["weight_distance"] +
-            collision_cost * weights["weight_collision"] + 
+            # distance_cost * weights["weight_distance"] +
+            # collision_cost * weights["weight_collision"] + 
             input_diff_cost * weights["weight_input_diff"] +
             final_state_cost * weights["weight_final_state"]
         )
