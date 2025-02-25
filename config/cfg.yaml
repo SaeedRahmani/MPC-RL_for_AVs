@@ -5,6 +5,7 @@ env:
   normalize: False
   order: sorted
   spawn_probability: 0.3
+  duration: 200
 
 ppo:
   # Model parameters
@@ -75,7 +76,7 @@ mpc_rl:
       action_space_dim: 4  # From old v1 config
       learning_rate: 0.0003  # From old lr
       n_steps: 64
-      total_timesteps: 1024  # From old total_timesteps
+      total_timesteps: 1000000  # From old total_timesteps
       batch_size: 64
       n_epochs: 10
       gamma: 0.99

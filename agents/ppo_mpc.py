@@ -409,14 +409,14 @@ class PPO_MPC(PPO):
             if self.version == "v0":
                 ref_speed = clipped_actions
                 weights_from_RL = None
-                print("version 0 action dim", clipped_actions.shape)
-                print("ref_speed", ref_speed)
+                # print("version 0 action dim", clipped_actions.shape)
+                # print("ref_speed", ref_speed)
 
             else:
                 ref_speed = None
                 weights_from_RL = clipped_actions
-                print("version 1 action dim", clipped_actions.shape)
-                print("weights_from_RL", weights_from_RL)
+                # print("version 1 action dim", clipped_actions.shape)
+                # print("weights_from_RL", weights_from_RL)
             
             # let mpc agent work!
             mpc_action = self.mpc_agent.predict(

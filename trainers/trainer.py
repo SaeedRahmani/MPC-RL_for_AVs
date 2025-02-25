@@ -197,69 +197,7 @@ class BaseTrainer:
         if os.path.exists(f"{path}/training_metrics.npy"):
             self.metrics = np.load(f"{path}/training_metrics.npy", allow_pickle=True).item()
             self._update_plots()
-
-    def learn(self):
-        self._build_model()
-
-        # Initialize the save callback
-        save_callback = SaveModelCallback(
-            save_path="./saved_models",
-            save_freq=256,
-            verbose=1
-        )
-
-        # Define custom callback for plotting
-        class PlottingCallback(BaseCallback):
-            def __init__(self, trainer, verbose=0):
-                super().__init__(verbose)
-                self.trainer = trainer
-
-            def _on_step(self):
-                # Get latest reward and update step rewards
-                if len(self.locals['infos']) > 0:
-                    latest_reward = self.locals['infos'][0].get('agents_rewards', (0,))[0]
-                    self.trainer.step_rewards.append(latest_reward)
-                    self.trainer.current_episode_rewards.append(latest_reward)
-
-                    # Check if episode has ended
-                    if self.locals['dones'][0]:
-                        if len(self.trainer.current_episode_rewards) > 0:
-                            episode_avg_reward = np.mean(self.trainer.current_episode_rewards)
-                            self.trainer.episode_rewards.append(episode_avg_reward)
-                            self.trainer.current_episode_rewards = []  # Reset for next episode
-
-                # Get latest loss
-                if hasattr(self.model, 'logger'):
-                    logger_values = self.model.logger.name_to_value
-                    if len(logger_values) > 0:
-                        loss = None
-                        for key in logger_values:
-                            if 'loss' in key.lower():
-                                loss = logger_values[key]
-                                break
-                        if loss is not None:
-                            self.trainer.losses.append(loss)
-
-                # Update plots every 10 steps
-                if self.n_calls % 10 == 0:
-                    self.trainer._update_plots()
-                return True
-
-        plotting_callback = PlottingCallback(self)
-
-        # Combine both callbacks
-        combined_callbacks = CallbackList([save_callback, plotting_callback])
-
-        self.model.learn(
-            total_timesteps=self.mpcrl_cfg["total_timesteps"],
-            progress_bar=self.mpcrl_cfg["show_progress_bar"],
-            callback=combined_callbacks,
-        )
-
-        # Final plot update and display
-        self._update_plots()
-        plt.figure(self.fig.number)
-        plt.show(block=True)
+        
     def learn(self):
         self._build_model()
 
@@ -270,7 +208,7 @@ class BaseTrainer:
         metrics_callback = MetricsCallback(self, save_freq=1024)
         save_callback = SaveModelCallback(
             save_path="./saved_models",
-            save_freq=1024,
+            save_freq=256,
             verbose=1
         )
 
@@ -287,54 +225,6 @@ class BaseTrainer:
         self.save_metrics()
         self._update_plots()
         plt.show(block=True)
-
-    def learn_old(self):
-        self._build_model()
-
-        # Initialize the save callback
-        save_callback = SaveModelCallback(
-            save_path="./saved_models/mpcrl",
-            save_freq=1024,
-            verbose=1
-        )
-
-        # Define the plotting and logging callback
-        def plotting_callback(_locals, _globals):
-            if _locals['dones']:
-                self.rewards.append(_locals['rewards'][0])
-            
-            if hasattr(_locals['self'], 'logger'):
-                if len(_locals['self'].logger.name_to_value) > 0:
-                    loss = _locals['self'].logger.name_to_value.get('train/loss', 0)
-                    if loss > 0:
-                        self.losses.append(loss)
-                    
-            if len(self.rewards) % 10 == 0:
-                self._update_plots()
-            return True
-
-        # Combine both callbacks into a CallbackList
-        combined_callback = CallbackList([save_callback])
-
-        self.model.learn(
-            total_timesteps=self.mpcrl_cfg["total_timesteps"],
-            progress_bar=self.mpcrl_cfg["show_progress_bar"],
-            callback=combined_callback,
-        )
-
-        # Final plot update and display
-        self._update_plots()
-        plt.figure(self.fig.number)  # Ensure correct figure is active
-        plt.show(block=True)  # Keep plots open after training
-
-
-
-    # Old learn method before adding the plotting
-    # def learn(self):
-    #     self.model.learn(
-    #         total_timesteps=self.mpcrl_cfg["total_timesteps"], 
-    #         progress_bar=self.mpcrl_cfg["show_progress_bar"],
-    #     )
 
     def save(self, file, path):
         self.model.save(f"./{path}/{self.version}/{file}")
@@ -362,7 +252,7 @@ class BaseTrainer:
                 ref_speed=RL_output.detach().numpy(),
             )
             # Print the reference speed
-            print("Reference Speed from RL Agent:", RL_output.detach().numpy())
+            # print("Reference Speed from RL Agent:", RL_output.detach().numpy())
         else:
             mpc_action = self.model.mpc_agent.predict(
                 obs=obs,
@@ -371,7 +261,7 @@ class BaseTrainer:
                 ref_speed=None,
             )
             # Print the reference speed
-            print("Reference Speed from RL Agent:", RL_output.detach().numpy())
+            # print("Reference Speed from RL Agent:", RL_output.detach().numpy())
             # mpc_action = mpc_action.reshape((1,2))    
         return mpc_action
 
@@ -497,7 +387,7 @@ class MetricsCallback(BaseCallback):
 
             # Print rewards for debugging
             env = self.trainer.env.unwrapped
-            print(f"Step Reward: {reward}, Collision Reward: {env.config['collision_reward']}, Arrival Reward: {env.config['arrived_reward']}")
+            # print(f"Step Reward: {reward})
 
             # Check for collision and success
             # is_collision = abs(reward - env.config["collision_reward"]) < 1e-5

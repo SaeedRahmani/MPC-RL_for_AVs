@@ -82,8 +82,8 @@ class PureMPC_Agent(Agent):
         manual_collision_avoidance = True
         # MPC parameters
         N = self.horizon
-        print('weights_from_RL', weights_from_RL)
-        print('ref_speed_from_RL', ref_speed_from_RL)
+        # print('weights_from_RL', weights_from_RL)
+        # print('ref_speed_from_RL', ref_speed_from_RL)
         # Define symbolic variables for states and controls
         n_states = 4    # [x, y, theta, v]
         n_controls = 2  # [acceleration, steer_angle]
@@ -682,11 +682,11 @@ class PureMPC_Agent(Agent):
             new_ref = np.copy(self.reference_states)
             safe_speed = np.clip(speed_overide_from_RL[0,0], 0, DEFAULT_MAX_SPEED)
             new_ref[:, 2] = safe_speed
-            print('Using RL speed override')
+            # print('Using RL speed override')
             return new_ref
 
         if not self.is_collide:
-            print('Using no collision avoidance')
+            # print('Using no collision avoidance')
             return np.copy(self.reference_states)
 
         new_reference_states = np.copy(self.reference_states)
@@ -713,7 +713,7 @@ class PureMPC_Agent(Agent):
             new_reference_states[stop_index:, 2] = 0.0
             self.stop_point = self.reference_trajectory[stop_index]
             self.last_valid_stop_point = self.stop_point  # Store last valid stop point
-            print('Using collision avoidance')
+            # print('Using collision avoidance')
         elif self.last_valid_stop_point is not None:
             # Use last valid stop point if available
             self.stop_point = self.last_valid_stop_point
