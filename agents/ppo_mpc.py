@@ -430,6 +430,7 @@ class PPO_MPC(PPO):
             mpc_action = mpc_action.reshape((1,2))
 
             new_obs, rewards, dones, infos = env.step(mpc_action)
+            # print('rewards:', rewards)
 
             self.num_timesteps += env.num_envs
 

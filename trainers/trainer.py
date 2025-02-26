@@ -4,14 +4,13 @@ import numpy as np
 import torch
 import gymnasium as gym
 from typing import Dict
-        
+
 from gymnasium.spaces import Box
-from stable_baselines3 import A2C, PPO       # Off-policy
-from stable_baselines3 import SAC, TD3, DDPG # On-policy
+from stable_baselines3 import A2C, PPO       # On-policy
+from stable_baselines3 import SAC, TD3, DDPG # Off-policy
 from stable_baselines3 import DQN
 
 from stable_baselines3.common.base_class import BaseAlgorithm
-from stable_baselines3.common.policies import BasePolicy, ActorCriticPolicy
 from stable_baselines3.common.callbacks import BaseCallback,  CallbackList
 
 from config.config import build_env_config, build_mpcrl_agent_config, build_pure_mpc_agent_config
@@ -21,6 +20,7 @@ from agents.ppo_mpc import PPO_MPC
 
 import os 
 
+
 class BaseTrainer:
     """ A base trainer class for reinforcement learning algorithms. """
 
@@ -29,24 +29,28 @@ class BaseTrainer:
         "a2c": A2C_MPC,
     }
 
-    def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict):
-        
+    def __init__(self, 
+                 env: gym.Env, 
+                 mpcrl_cfg: dict, 
+                 pure_mpc_cfg: dict,
+                 enable_viz: bool = True  # <-- Add this flag
+                 ):
         """
         Initialize the BaseTrainer.
         Args:
-            env: The gym environment
-            mpcrl_cfg: MPC-RL configuration dict
-            pure_mpc_cfg: Pure MPC configuration dict
-            enable_viz: Whether to enable visualization during training
+            env (gym.Env): The gym environment
+            mpcrl_cfg (dict): MPC-RL configuration dict
+            pure_mpc_cfg (dict): Pure MPC configuration dict
+            enable_viz (bool): Whether to enable interactive visualization during training
         """
         plt.close('all')
-        
 
         self.env = env
         self.mpcrl_cfg = mpcrl_cfg
         self.pure_mpc_cfg = pure_mpc_cfg
         self.model = None
-        
+        self.enable_viz = enable_viz
+
         # Initialize metrics tracking
         self.metrics = {
             # Episode metrics
@@ -128,25 +132,35 @@ class BaseTrainer:
         self.ax_speed.legend()
 
         plt.tight_layout()
-        plt.ion()
-        plt.show(block=False)
+        
+        # Only turn on interactive mode if enable_viz is True
+        if self.enable_viz:
+            plt.ion()
+            plt.show(block=False)
+
 
     def _update_plots(self):
+        """Update the data in the plot lines, and optionally update the figure in real-time."""
         # Update episode rewards
         if len(self.metrics['episode_rewards']) > 0:
-            self.reward_line.set_data(range(len(self.metrics['episode_rewards'])), 
-                                    self.metrics['episode_rewards'])
+            self.reward_line.set_data(
+                range(len(self.metrics['episode_rewards'])), 
+                self.metrics['episode_rewards']
+            )
             self.ax_rewards.relim()
             self.ax_rewards.autoscale_view()
 
         # Update success and collision rates
         if len(self.metrics['success_count']) > 0:
             episodes = range(len(self.metrics['success_count']))
-            success_rate = [sum(self.metrics['success_count'][:i+1])/(i+1) 
-                          for i in range(len(self.metrics['success_count']))]
-            collision_rate = [sum(self.metrics['collision_count'][:i+1])/(i+1) 
-                            for i in range(len(self.metrics['collision_count']))]
-            
+            success_rate = [
+                sum(self.metrics['success_count'][:i+1])/(i+1) 
+                for i in range(len(self.metrics['success_count']))
+            ]
+            collision_rate = [
+                sum(self.metrics['collision_count'][:i+1])/(i+1) 
+                for i in range(len(self.metrics['collision_count']))
+            ]
             self.success_line.set_data(episodes, success_rate)
             self.collision_line.set_data(episodes, collision_rate)
             self.ax_success.relim()
@@ -171,20 +185,27 @@ class BaseTrainer:
 
         # Update episode length
         if len(self.metrics['episode_lengths']) > 0:
-            self.length_line.set_data(range(len(self.metrics['episode_lengths'])), 
-                                    self.metrics['episode_lengths'])
+            self.length_line.set_data(
+                range(len(self.metrics['episode_lengths'])), 
+                self.metrics['episode_lengths']
+            )
             self.ax_length.relim()
             self.ax_length.autoscale_view()
 
         # Update average speed
         if len(self.metrics['avg_speed']) > 0:
-            self.speed_line.set_data(range(len(self.metrics['avg_speed'])), 
-                                   self.metrics['avg_speed'])
+            self.speed_line.set_data(
+                range(len(self.metrics['avg_speed'])), 
+                self.metrics['avg_speed']
+            )
             self.ax_speed.relim()
             self.ax_speed.autoscale_view()
 
-        self.fig.canvas.draw_idle()
-        self.fig.canvas.flush_events()
+        # If visualization is enabled, update the figure canvas
+        if self.enable_viz:
+            self.fig.canvas.draw_idle()
+            self.fig.canvas.flush_events()
+
 
     def save_metrics(self, path="./saved_metrics"):
         """Save the current metrics to a file."""
@@ -192,13 +213,16 @@ class BaseTrainer:
         np.save(f"{path}/training_metrics.npy", self.metrics)
         self.fig.savefig(f"{path}/training_plots.png")
 
+
     def load_metrics(self, path="./saved_metrics"):
         """Load previously saved metrics."""
         if os.path.exists(f"{path}/training_metrics.npy"):
             self.metrics = np.load(f"{path}/training_metrics.npy", allow_pickle=True).item()
             self._update_plots()
-        
+
+
     def learn(self):
+        """Main training loop entry point."""
         self._build_model()
 
         # Try to load previous metrics if they exist
@@ -224,14 +248,23 @@ class BaseTrainer:
         # Final metrics save and plot update
         self.save_metrics()
         self._update_plots()
-        plt.show(block=True)
+
+        # If visualization is enabled, keep the window open after training
+        if self.enable_viz:
+            plt.figure(self.fig.number)
+            plt.show(block=True)
+
 
     def save(self, file, path):
+        """Save the model and the current plot."""
         self.model.save(f"./{path}/{self.version}/{file}")
         # Save figure without closing
         plt.figure(self.fig.number)
         plt.savefig(f"{path}/training_plots_{file}.png")
-        plt.show(block=True)  # Keep displaying after save
+
+        # If we wanted to keep the figure open (only if visualization is enabled)
+        if self.enable_viz:
+            plt.show(block=True)
 
     def load(self, path, mpcrl_cfg, version, pure_mpc_cfg, env):
         self.model.load(path, mpcrl_cfg, version, pure_mpc_cfg, env)
@@ -242,7 +275,6 @@ class BaseTrainer:
         if isinstance(obs, np.ndarray):
             obs_tensor = torch.Tensor(obs).flatten().unsqueeze(dim=0)
         RL_output, _, _ = self.model.policy(obs_tensor)
-
 
         if self.model.version == "v0":
             mpc_action = self.model.mpc_agent.predict(
@@ -260,23 +292,19 @@ class BaseTrainer:
                 weights_from_RL=RL_output.detach().numpy(),
                 ref_speed=None,
             )
-            # Print the reference speed
-            # print("Reference Speed from RL Agent:", RL_output.detach().numpy())
-            # mpc_action = mpc_action.reshape((1,2))    
         return mpc_action
 
     def _setup_algorithm(self):
+        """Choose which RL algorithm (PPO/A2C) to use."""
         algorithm = self.mpcrl_cfg["algorithm"]
         self.algo = PPO_MPC if algorithm == "ppo" else A2C_MPC
 
-  
     def _build_model(self):
-        # Determine algorithm and build policy
+        """Build the Stable-Baselines3 model using the config and MPC wrapper."""
         self.algo: BaseAlgorithm = self._specify_algo()
         algorithm = self.mpcrl_cfg["algorithm"]
         action_dim = self.mpcrl_cfg["action_space_dim"]
 
-        # Select appropriate policy creation function
         if algorithm == "a2c":
             policy = create_a2c_policy(action_dim)
         elif algorithm == "ppo":
@@ -284,7 +312,7 @@ class BaseTrainer:
         else:
             raise ValueError(f"Unsupported algorithm: {algorithm}")
 
-        # Common parameters for both algorithms
+        # Common parameters
         common_params = {
             "policy": policy,
             "env": self.env,
@@ -314,7 +342,6 @@ class BaseTrainer:
                 "use_rms_prop": self.mpcrl_cfg.get("use_rms_prop", True),
             })
 
-        # Initialize the model with the selected algorithm and parameters
         self.model = self.algo(**common_params)
 
         # TODO: Check to see if this is generic 
@@ -326,7 +353,7 @@ class BaseTrainer:
             dtype=np.float32,
         )
         self.model.action_space = new_action_space
-        
+                
         # if self.version == "v0":
         #     low = 0.0   # Lower bound for v0
         #     high = 30.0  # Upper bound for v0
@@ -342,23 +369,18 @@ class BaseTrainer:
         #     high=high, 
         #     shape=(action_dim,), 
         #     dtype=np.float32)
-        
-        
-        self.action_space = new_action_space  # Assign to the model's action space
+        # self.action_space = new_action_space  # Assign to the model's action space
 
         # Replace the action dimension in the rollout buffer, if applicable
         if hasattr(self.model, "rollout_buffer") and self.model.rollout_buffer is not None:
             self.model.rollout_buffer.action_dim = action_dim
         
     def _specify_algo(self) -> BaseAlgorithm:
-        """
-        Specify the family of RL algorithm to use.
-
-        :return: An instance of the specified reinforcement learning algorithm.
-        """
-        algorithm = self.mpcrl_cfg["algorithm"]  # Changed from "algo" to "algorithm"
+        """Specify which RL algorithm to use from the class ALGO dict."""
+        algorithm = self.mpcrl_cfg["algorithm"]
         assert algorithm in BaseTrainer.ALGO, f"Algorithm '{algorithm}' is not supported."
         return BaseTrainer.ALGO[algorithm]
+
 
 class MetricsCallback(BaseCallback):
     def __init__(self, trainer, save_freq=1024, verbose=0):
@@ -370,14 +392,11 @@ class MetricsCallback(BaseCallback):
         self.speed_buffer = []
 
     def _on_step(self) -> bool:
-        # Get info from current step
         infos = self.locals['infos']
         if len(infos) > 0:
             info = infos[0]
-            
-            # Update episode tracking
             self.episode_step_count += 1
-            reward = info.get('agents_rewards', (0,))[0]  # Instant reward
+            reward = info.get('agents_rewards', (0,))[0]  
             self.current_episode_reward += reward
             
             # Track speed
@@ -385,38 +404,31 @@ class MetricsCallback(BaseCallback):
                 vehicle = self.trainer.env.unwrapped.controlled_vehicles[0]
                 self.speed_buffer.append(vehicle.speed)
 
-            # Print rewards for debugging
             env = self.trainer.env.unwrapped
             # print(f"Step Reward: {reward})
 
-            # Check for collision and success
-            # is_collision = abs(reward - env.config["collision_reward"]) < 1e-5
+            # Check collision/success
             is_collision = reward == env.config["collision_reward"]
             is_success = reward == env.config["arrived_reward"]
 
             # Check if episode ended
             if self.locals['dones'][0]:  
-                # Record episode metrics
                 self.trainer.metrics['episode_rewards'].append(self.current_episode_reward)
                 self.trainer.metrics['episode_lengths'].append(self.episode_step_count)
                 self.trainer.metrics['collision_count'].append(1 if is_collision else 0)
                 self.trainer.metrics['success_count'].append(1 if is_success else 0)
-                
                 if len(self.speed_buffer) > 0:
                     self.trainer.metrics['avg_speed'].append(np.mean(self.speed_buffer))
                 else:
                     self.trainer.metrics['avg_speed'].append(0)
 
-                # Reset episode tracking
                 self.episode_step_count = 0
                 self.current_episode_reward = 0
                 self.speed_buffer = []
 
-        # Get training metrics
+        # Get training metrics from SB3 logger
         if hasattr(self.model, 'logger'):
             logger = self.model.logger.name_to_value
-            
-            # Record training metrics if available
             if 'train/policy_gradient_loss' in logger:
                 self.trainer.metrics['policy_losses'].append(logger['train/policy_gradient_loss'])
                 self.trainer.metrics['value_losses'].append(logger['train/value_loss'])
@@ -429,31 +441,28 @@ class MetricsCallback(BaseCallback):
         if self.n_calls % self.save_freq == 0:
             self.trainer.save_metrics()
 
-        # Update plots occasionally
+        # Update plots occasionally (still do it whether or not we show them)
         if self.n_calls % 10 == 0:
             self.trainer._update_plots()
 
         return True
 
 
-
 class RefSpeedTrainer(BaseTrainer):
-    def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict):
-        super(RefSpeedTrainer, self).__init__(env, mpcrl_cfg, pure_mpc_cfg)
+    def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict, enable_viz: bool = True):
+        super(RefSpeedTrainer, self).__init__(env, mpcrl_cfg, pure_mpc_cfg, enable_viz)
         self.version = "v0"
         self._setup_algorithm()
         self._build_model()
-    # def _build_model(self, version="v0"):
-    #     return super()._build_model(version)
+
 
 class DynamicWeightTrainer(BaseTrainer):
-    def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict):
-        super(DynamicWeightTrainer, self).__init__(env, mpcrl_cfg, pure_mpc_cfg)
+    def __init__(self, env: gym.Env, mpcrl_cfg: dict, pure_mpc_cfg: dict, enable_viz: bool = True):
+        super(DynamicWeightTrainer, self).__init__(env, mpcrl_cfg, pure_mpc_cfg, enable_viz)
         self.version = "v1"
         self._setup_algorithm()
         self._build_model()
-    # def _build_model(self, version="v1"):
-    #     return super()._build_model(version)
+
 
 class SaveModelCallback(BaseCallback):
     def __init__(self, save_path, save_freq, verbose=0):
@@ -469,24 +478,27 @@ class SaveModelCallback(BaseCallback):
                 print(f"Model saved to {save_file}")
         return True
 
+
 @hydra.main(config_name="cfg", config_path="../config", version_base="1.3")
 def test_trainer(cfg):
 
     import highway_env
-    
+
     gym_env_config = build_env_config(cfg)
     mpcrl_agent_config = build_mpcrl_agent_config(cfg)
     pure_mpc_agent_config = build_pure_mpc_agent_config(cfg)
 
-    # env
+    # Example usage:
     env = gym.make("intersection-v1", render_mode="rgb_array", config=gym_env_config)
 
-    # trainer = DynamicWeightTrainer(env, mpcrl_agent_config, pure_mpc_agent_config)
-    # trainer.learn()
-    # trainer.save()
+    # If you want dynamic weights with no real-time plotting:
+    # trainer = DynamicWeightTrainer(env, mpcrl_agent_config, pure_mpc_agent_config, enable_viz=False)
 
-    trainer = RefSpeedTrainer(env, mpcrl_agent_config, pure_mpc_agent_config, env)
+    # If you want reference-speed style with real-time plotting:
+    trainer = RefSpeedTrainer(env, mpcrl_agent_config, pure_mpc_agent_config, enable_viz=True)
+
     trainer.learn()
+
 
 if __name__ == "__main__":
     test_trainer()

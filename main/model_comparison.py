@@ -23,7 +23,7 @@ from trainers.trainer import RefSpeedTrainer
 
 # Evaluation Configuration
 VISUALIZATION_MODE = False  # Set to False for multiple runs without visualization
-N_EPISODES = 1 if VISUALIZATION_MODE else 10  # Number of episodes to run
+N_EPISODES = 1 if VISUALIZATION_MODE else 100  # Number of episodes to run
 RENDER_MODE = "human" if VISUALIZATION_MODE else "rgb_array"
 MODELS_TO_EVALUATE = ["pure_mpc"]  # Options: ["pure_mpc", "pure_mpc_no_collision", "mpcrl", "ppo"]
 MODELS_TO_EVALUATE = ["pure_mpc", "pure_mpc_no_collision", "mpcrl", "ppo"]
