@@ -405,7 +405,9 @@ class MetricsCallback(BaseCallback):
                 self.speed_buffer.append(vehicle.speed)
 
             env = self.trainer.env.unwrapped
-            # print(f"Step Reward: {reward})
+            
+            # Print the reward for each step
+            print(f"Step Reward: {reward}")
 
             # Check collision/success
             is_collision = reward == env.config["collision_reward"]

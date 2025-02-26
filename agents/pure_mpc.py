@@ -102,7 +102,6 @@ class PureMPC_Agent(Agent):
                 f"weight_{key}": weights_from_RL[0, i] 
                 for i, key in enumerate(PureMPC_Agent.weight_components)
             }
-        print(weights["weight_speed"])
         # Get the index on the reference trajectory for ego vehicle
         self.ego_index = np.argmin(
             [np.linalg.norm(self.ego_vehicle.position - trajectory_point) 
