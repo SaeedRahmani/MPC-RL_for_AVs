@@ -73,10 +73,10 @@ mpc_rl:
       normalize_advantage: true
       show_progress_bar: true
     v1:
-      action_space_dim: 4  # From old v1 config
+      action_space_dim: 3 # From old v1 config
       learning_rate: 0.0003  # From old lr
       n_steps: 64
-      total_timesteps: 1000000  # From old total_timesteps
+      total_timesteps: 2000000  # From old total_timesteps
       batch_size: 64
       n_epochs: 10
       gamma: 0.99
@@ -98,7 +98,7 @@ pure_mpc:
   detection_distance: 100
   speed_override: 0
   # weight parameters
-  weight_state: 10
+  weight_speed: 10
   weight_control: 1
   weight_final_state: 1
   weight_input_diff: 1

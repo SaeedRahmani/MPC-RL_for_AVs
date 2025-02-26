@@ -13,12 +13,12 @@ from .utils import MPC_Action, Vehicle
 class PureMPC_Agent(Agent):
 
     weight_components = [
-        "state", 
+        "speed", 
         "control", 
         # "distance", 
         # "collision", 
-        "input_diff", 
-        "final_state"
+        "input_diff"
+        # "final_state"
     ]
 
     def __init__(
@@ -36,7 +36,7 @@ class PureMPC_Agent(Agent):
         super().__init__(env, cfg)
 
         self.collision_memory = 0  # Add collision memory counter
-        self.collision_memory_steps = 40 # How many steps to remember collision
+        self.collision_memory_steps = 10 # How many steps to remember collision
 
         self.memorized_conflict_points = None
         self.memorized_conflict_indices = None
@@ -102,7 +102,7 @@ class PureMPC_Agent(Agent):
                 f"weight_{key}": weights_from_RL[0, i] 
                 for i, key in enumerate(PureMPC_Agent.weight_components)
             }
-
+        print(weights["weight_speed"])
         # Get the index on the reference trajectory for ego vehicle
         self.ego_index = np.argmin(
             [np.linalg.norm(self.ego_vehicle.position - trajectory_point) 
@@ -141,7 +141,7 @@ class PureMPC_Agent(Agent):
             para_deviation = dx * ca.cos(ref_heading) + dy * ca.sin(ref_heading)
             
             # TODO: Check this and remove it if not needed
-            speed_weight = 1
+            speed_weight = weights["weight_speed"] # old = 1
             if self.is_collide:
                 # print('collision', self.is_collide)
                 # print('ref v', ref_v)
@@ -203,12 +203,13 @@ class PureMPC_Agent(Agent):
         )
 
         total_cost = (
-            state_cost * weights["weight_state"] +      # old weight: 10
+            #state_cost * weights["weight_state"] +      # old weight: 10
+            state_cost * 10 +
             control_cost * weights["weight_control"] +  # old weight: 1
             # distance_cost * weights["weight_distance"] +
             # collision_cost * weights["weight_collision"] + 
-            input_diff_cost * weights["weight_input_diff"] +
-            final_state_cost * weights["weight_final_state"]
+            input_diff_cost * weights["weight_input_diff"] 
+            # final_state_cost * weights["weight_final_state"]
         )
 
         # Define a function to evaluate each cost component based on the optimized state and control inputs
