@@ -11,10 +11,12 @@ from .utils import MPC_Action, Vehicle
 
 class PureMPC_Agent(Agent):
     weight_components = [
-        "state",
-        "control",
-        "input_diff",
-        "final_state"
+        "speed", 
+        "control", 
+        # "distance", 
+        # "collision", 
+        "input_diff"
+        # "final_state"
     ]
 
     def __init__(
@@ -120,7 +122,7 @@ class PureMPC_Agent(Agent):
             state_cost += (
                 4 * perp_deviation**2 + 
                 2 * para_deviation**2 +
-                (x[3, k] - ref_v)**2 + 
+                weights["weight_speed"] * (x[3, k] - ref_v)**2 + 
                 0.5 * (x[2, k] - ref_heading)**2
             )
 
@@ -142,10 +144,10 @@ class PureMPC_Agent(Agent):
         )
 
         total_cost = (
-            state_cost * weights["weight_state"] +
+            # state_cost * weights["weight_state"] +
             control_cost * weights["weight_control"] +
-            input_diff_cost * weights["weight_input_diff"] +
-            final_state_cost * weights["weight_final_state"]
+            input_diff_cost * weights["weight_input_diff"] 
+            # final_state_cost * weights["weight_final_state"]
         )
 
         # Define the vehicle dynamics using the Kinematic Bicycle Model
