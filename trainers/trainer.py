@@ -54,12 +54,18 @@ class BaseTrainer:
         # Initialize metrics tracking
         self.metrics = {
             # Episode metrics
-            'episode_rewards': [],
-            'episode_lengths': [],
-            'collision_count': [],
-            'success_count': [],
-            'avg_speed': [],
+            'episode_rewards': [],  # storing the rewards of each episode
+            'episode_lengths': [], # counting the steps in each episode
+            'collision_count': [], # counting the collision episodes
+            'success_count': [], # counting the successful episodes
+            'avg_speed': [],    # for storing the speed anc cal. average speed of the ego vehicle
+            'episode_count': 0,  # counting the episodes even if they are not successful
             
+            # Smoothed metrics
+            'smoothed_rewards': [],  
+            'smoothed_lengths': [],
+            'smoothed_speed': [],
+
             # Training metrics
             'policy_losses': [],
             'value_losses': [],
@@ -138,6 +144,26 @@ class BaseTrainer:
             plt.ion()
             plt.show(block=False)
 
+    def _calculate_smoothed_metrics(self, window_size=10):
+        """Calculate smoothed metrics using a rolling window average."""
+        if len(self.metrics['episode_rewards']) > 0:
+            rewards = np.array(self.metrics['episode_rewards'])
+            lengths = np.array(self.metrics['episode_lengths'])
+            speeds = np.array(self.metrics['avg_speed'])
+            
+            # Calculate rolling averages
+            self.metrics['smoothed_rewards'] = [
+                np.mean(rewards[max(0, i-window_size+1):i+1]) 
+                for i in range(len(rewards))
+            ]
+            self.metrics['smoothed_lengths'] = [
+                np.mean(lengths[max(0, i-window_size+1):i+1]) 
+                for i in range(len(lengths))
+            ]
+            self.metrics['smoothed_speed'] = [
+                np.mean(speeds[max(0, i-window_size+1):i+1]) 
+                for i in range(len(speeds))
+            ]
 
     def _update_plots(self):
         """Update the data in the plot lines, and optionally update the figure in real-time."""
@@ -153,12 +179,15 @@ class BaseTrainer:
         # Update success and collision rates
         if len(self.metrics['success_count']) > 0:
             episodes = range(len(self.metrics['success_count']))
+            # Use total episode count for more accurate rates
             success_rate = [
-                sum(self.metrics['success_count'][:i+1])/(i+1) 
+                sum(self.metrics['success_count'][:i+1]) / (i+1)
                 for i in range(len(self.metrics['success_count']))
             ]
+        if len(self.metrics['collision_count']) > 0:
+            episodes = range(len(self.metrics['collision_count']))
             collision_rate = [
-                sum(self.metrics['collision_count'][:i+1])/(i+1) 
+                sum(self.metrics['collision_count'][:i+1]) / (i+1)
                 for i in range(len(self.metrics['collision_count']))
             ]
             self.success_line.set_data(episodes, success_rate)
@@ -201,6 +230,44 @@ class BaseTrainer:
             self.ax_speed.relim()
             self.ax_speed.autoscale_view()
 
+        # In _update_plots method, add after the regular reward line update:
+        if len(self.metrics['smoothed_rewards']) > 0:
+            # Create smoothed line if it doesn't exist yet
+            if not hasattr(self, 'smoothed_reward_line'):
+                self.smoothed_reward_line, = self.ax_rewards.plot(
+                    [], [], 'r-', linewidth=2, label='Smoothed Reward')
+                self.ax_rewards.legend()  # Update legend
+            
+            # Update the smoothed reward line
+            self.smoothed_reward_line.set_data(
+                range(len(self.metrics['smoothed_rewards'])), 
+                self.metrics['smoothed_rewards']
+            )
+
+        # Similarly for episode length (add after the regular length line update):
+        if len(self.metrics['smoothed_lengths']) > 0:
+            if not hasattr(self, 'smoothed_length_line'):
+                self.smoothed_length_line, = self.ax_length.plot(
+                    [], [], 'r-', linewidth=2, label='Smoothed Length')
+                self.ax_length.legend()
+            
+            self.smoothed_length_line.set_data(
+                range(len(self.metrics['smoothed_lengths'])),
+                self.metrics['smoothed_lengths']
+            )
+
+        # And for speed (add after the regular speed line update):
+        if len(self.metrics['smoothed_speed']) > 0:
+            if not hasattr(self, 'smoothed_speed_line'):
+                self.smoothed_speed_line, = self.ax_speed.plot(
+                    [], [], 'r-', linewidth=2, label='Smoothed Speed')
+                self.ax_speed.legend()
+            
+            self.smoothed_speed_line.set_data(
+                range(len(self.metrics['smoothed_speed'])),
+                self.metrics['smoothed_speed']
+            )
+
         # If visualization is enabled, update the figure canvas
         if self.enable_viz:
             self.fig.canvas.draw_idle()
@@ -232,7 +299,7 @@ class BaseTrainer:
         metrics_callback = MetricsCallback(self, save_freq=1024)
         save_callback = SaveModelCallback(
             save_path="./saved_models",
-            save_freq=256,
+            save_freq=1024,
             verbose=1
         )
 
@@ -246,6 +313,7 @@ class BaseTrainer:
         )
 
         # Final metrics save and plot update
+        self._calculate_smoothed_metrics()
         self.save_metrics()
         self._update_plots()
 
@@ -258,6 +326,11 @@ class BaseTrainer:
     def save(self, file, path):
         """Save the model and the current plot."""
         self.model.save(f"./{path}/{self.version}/{file}")
+
+        # Always update metrics and plots before saving
+        self._calculate_smoothed_metrics()
+        self._update_plots()
+
         # Save figure without closing
         plt.figure(self.fig.number)
         plt.savefig(f"{path}/training_plots_{file}.png")
@@ -407,11 +480,45 @@ class MetricsCallback(BaseCallback):
             env = self.trainer.env.unwrapped
             
             # Print the reward for each step
-            print(f"Step Reward: {reward}")
+            # print(f"Step Reward: {reward}")
 
-            # Check collision/success
-            is_collision = reward == env.config["collision_reward"]
-            is_success = reward == env.config["arrived_reward"]
+            ### APPROACH 1 ###
+            # Check collision/success only based on reward
+            # is_collision = reward == env.config["collision_reward"]
+            # is_success = reward == env.config["arrived_reward"]
+
+            ### APPROACH 1.5 ### NOT A GOOD ONE BUT WORKS FOR NOW
+            is_collision = False
+            is_success = False
+            if reward < env.config["collision_reward"] / 2:
+                is_collision = True
+            if reward > env.config["arrived_reward"] / 2:
+                is_success = True
+
+            ### APPROACH 2 ###
+            # # Check collision/success based on info
+            # is_collision = info.get('collision', False)
+            # is_success = info.get('arrived', False)
+            # # For arrival, we need to check if the vehicle is near the final point. That's also enough
+            # if not is_success:
+            #     if hasattr(self.trainer.model, 'mpc_agent'):
+            #         mpc_agent = self.trainer.model.mpc_agent
+                    
+            #         # Get ego position and trajectory
+            #         ego_vehicle = env.unwrapped.controlled_vehicles[0]
+            #         ego_position = np.array(ego_vehicle.position)
+                    
+            #         # Find the closest point on the trajectory to the ego vehicle
+            #         ref_trajectory = mpc_agent.reference_trajectory
+            #         distances = [np.linalg.norm(ego_position - point[:2]) for point in ref_trajectory]
+            #         closest_idx = np.argmin(distances)
+                    
+            #         # Calculate progress as percentage of trajectory completed
+            #         trajectory_progress = closest_idx / len(ref_trajectory)
+                    
+            #         # Consider success if completed 80% of trajectory
+            #         if trajectory_progress > 0.80:
+            #             is_success = True
 
             # Check if episode ended
             if self.locals['dones'][0]:  
@@ -424,6 +531,9 @@ class MetricsCallback(BaseCallback):
                 else:
                     self.trainer.metrics['avg_speed'].append(0)
 
+                # Increment episode counter
+                self.trainer.metrics['episode_count'] += 1
+                self.trainer._calculate_smoothed_metrics()
                 self.episode_step_count = 0
                 self.current_episode_reward = 0
                 self.speed_buffer = []
