@@ -31,6 +31,7 @@ class MergeEnv(AbstractEnv):
                 "merging_speed_reward": -0.5,
                 "lane_change_reward": -0.05,
                 "ego_on_ramp": False,
+                "other_vehicles_count": None,  # None = use all default vehicles
             }
         )
         return cfg
@@ -177,8 +178,12 @@ class MergeEnv(AbstractEnv):
             ego_vehicle.target_speed = 30
             road.vehicles.append(ego_vehicle)
 
-            # Highway traffic
-            for position, speed in [(30, 30), (90, 29), (70, 31), (5, 31.5)]:
+            # Highway traffic (configurable count via other_vehicles_count)
+            all_traffic = [(30, 30), (90, 29), (70, 31), (5, 31.5)]
+            n_vehicles = self.config.get("other_vehicles_count")
+            if n_vehicles is not None:
+                all_traffic = all_traffic[:n_vehicles]
+            for position, speed in all_traffic:
                 lane = road.network.get_lane(
                     ("a", "b", self.np_random.integers(2))
                 )
@@ -198,7 +203,11 @@ class MergeEnv(AbstractEnv):
             )
             road.vehicles.append(ego_vehicle)
 
-            for position, speed in [(90, 29), (70, 31), (5, 31.5)]:
+            all_traffic = [(90, 29), (70, 31), (5, 31.5)]
+            n_vehicles = self.config.get("other_vehicles_count")
+            if n_vehicles is not None:
+                all_traffic = all_traffic[:n_vehicles]
+            for position, speed in all_traffic:
                 lane = road.network.get_lane(
                     ("a", "b", self.np_random.integers(2))
                 )
